@@ -270,11 +270,10 @@ export default function CreateGamePage() {
                             key={type.value}
                             type="button"
                             onClick={() => field.onChange(type.value)}
-                            className={`p-4 rounded-xl border-2 transition-all text-left ${
-                              field.value === type.value
+                            className={`p-4 rounded-xl border-2 transition-all text-left ${field.value === type.value
                                 ? "border-primary bg-primary/5 shadow-md"
                                 : "border-border hover:border-primary/30"
-                            }`}
+                              }`}
                           >
                             <div className="text-2xl mb-2">{type.icon}</div>
                             <h3 className="font-bold text-sm">{type.title}</h3>
@@ -300,11 +299,10 @@ export default function CreateGamePage() {
                               key={size}
                               type="button"
                               onClick={() => field.onChange(size)}
-                              className={`p-4 rounded-xl border-2 transition-all text-center ${
-                                field.value === size
+                              className={`p-4 rounded-xl border-2 transition-all text-center ${field.value === size
                                   ? "border-primary bg-primary/5 shadow-md"
                                   : "border-border hover:border-primary/30"
-                              }`}
+                                }`}
                             >
                               <div className="flex justify-center mb-2 text-primary">
                                 {gridIcons[size]}

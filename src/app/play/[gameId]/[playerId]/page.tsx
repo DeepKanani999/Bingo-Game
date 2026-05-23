@@ -30,7 +30,12 @@ import {
   History,
   X,
   Zap,
-  Sparkles
+  Sparkles,
+  Star,
+  Crown,
+  Award,
+  Check,
+  TrendingUp
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { 
@@ -50,6 +55,23 @@ import {
 import { validateClaim, ClaimType } from "@/lib/claim-validator"
 import { subscribeToGame } from "@/lib/realtime"
 import { usePlayerStore } from "@/stores/playerStore"
+
+const getAvatarGradient = (name: string = "") => {
+  const colors = [
+    "from-blue-500 to-cyan-500",
+    "from-purple-500 to-pink-500",
+    "from-emerald-500 to-teal-500",
+    "from-amber-500 to-orange-500",
+    "from-rose-500 to-red-500",
+    "from-indigo-500 to-violet-500",
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % colors.length
+  return colors[index]
+}
 
 export default function PlayerBoardPage() {
   const params = useParams()
@@ -75,6 +97,7 @@ export default function PlayerBoardPage() {
   const [isZoomOpen, setIsZoomOpen] = useState(false)
   const [isGameOver, setIsGameOver] = useState(false)
   const [playerClaims, setPlayerClaims] = useState<any[]>([])
+  const [winners, setWinners] = useState<any[]>([])
   const mappingsRef = useRef<any[]>([])
   const hasLoadedRef = useRef(false)
   
@@ -222,6 +245,20 @@ export default function PlayerBoardPage() {
     }
   }, [gameId, playerId, router, setPlayerIdentity]) // Removed bollywoodMappings from deps
 
+  const fetchWinners = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("claims")
+        .select("*, players(display_name)")
+        .eq("game_id", gameId)
+        .eq("status", "approved")
+        .order("created_at", { ascending: true })
+      if (data) setWinners(data)
+    } catch (err) {
+      console.error("Error fetching winners:", err)
+    }
+  }, [gameId])
+
   useEffect(() => {
     loadData()
     
@@ -242,6 +279,7 @@ export default function PlayerBoardPage() {
       onGameStatusChanged: (payload) => {
         if (payload.new.status === "ended") {
           setIsGameOver(true)
+          fetchWinners()
           toast.success("Game completed! Viewing results...", { position: "top-center", duration: 5000 })
         }
         setGameData((prev: any) => ({ ...prev, ...payload.new }))
@@ -256,15 +294,30 @@ export default function PlayerBoardPage() {
           })
           if (claim.status === "approved") {
             toast.success("BINGO! Your claim was approved!", { duration: 5000 })
+            fetchWinners()
           } else if (claim.status === "rejected") {
             toast.error(`Claim rejected: ${claim.validation_reason}`, { duration: 5000 })
           }
+        } else if (claim.status === "approved") {
+          fetchWinners()
+        }
+      },
+      onClaimSubmitted: (payload) => {
+        const claim = payload.new
+        if (claim.status === "approved") {
+          fetchWinners()
         }
       }
     })
 
     return () => sub.unsubscribe()
-  }, [gameId, playerId, loadData, router]) // Removed gameData?.game_type and bollywoodMappings from deps
+  }, [gameId, playerId, loadData, router, fetchWinners])
+
+  useEffect(() => {
+    if (isGameOver) {
+      fetchWinners()
+    }
+  }, [isGameOver, fetchWinners])
 
   // ============ Actions ============
   const toggleMark = async (cell: BoardCell) => {
@@ -436,6 +489,57 @@ export default function PlayerBoardPage() {
 
   const gridConfig = getGridConfig(gameData.ticket_size as TicketSize)
   const progressPercent = Math.round((markedIds.size / board.filter(c => !c.isEmpty && !c.isFree).length) * 100)
+
+  const gameType = (gameData?.game_type as "number" | "bollywood" | "custom") || "number"
+  const theme = {
+    number: {
+      accent: "blue",
+      glow: "shadow-blue-500/20 shadow-lg hover:shadow-blue-500/30",
+      badgeBg: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      btnColor: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
+      gradientOrb: "bg-blue-500/10",
+      accentText: "text-blue-600 dark:text-blue-400",
+      bgAccent: "bg-blue-500",
+      border: "border-blue-500/20",
+      bgGradient: "from-blue-600/10 to-indigo-600/10",
+      titleGradient: "from-blue-400 via-indigo-500 to-purple-600",
+    },
+    bollywood: {
+      accent: "amber",
+      glow: "shadow-amber-500/20 shadow-lg hover:shadow-amber-500/30",
+      badgeBg: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+      btnColor: "bg-amber-600 hover:bg-amber-700 focus:ring-amber-500",
+      gradientOrb: "bg-amber-500/10",
+      accentText: "text-amber-600 dark:text-amber-400",
+      bgAccent: "bg-amber-500",
+      border: "border-amber-500/20",
+      bgGradient: "from-amber-600/10 to-rose-600/10",
+      titleGradient: "from-amber-400 via-rose-500 to-red-600",
+    },
+    custom: {
+      accent: "purple",
+      glow: "shadow-purple-500/20 shadow-lg hover:shadow-purple-500/30",
+      badgeBg: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+      btnColor: "bg-purple-600 hover:bg-purple-700 focus:ring-purple-500",
+      gradientOrb: "bg-purple-500/10",
+      accentText: "text-purple-600 dark:text-purple-400",
+      bgAccent: "bg-purple-500",
+      border: "border-purple-500/20",
+      bgGradient: "from-purple-600/10 to-pink-600/10",
+      titleGradient: "from-purple-400 via-pink-500 to-rose-600",
+    },
+  }[gameType] || {
+    accent: "neutral",
+    glow: "shadow-neutral-500/20 shadow-lg",
+    badgeBg: "bg-neutral-500/10 text-neutral-500 border-neutral-500/20",
+    btnColor: "bg-primary hover:bg-primary/90 focus:ring-primary",
+    gradientOrb: "bg-primary/5",
+    accentText: "text-primary",
+    bgAccent: "bg-primary",
+    border: "border-neutral-500/20",
+    bgGradient: "from-primary/5 to-secondary/5",
+    titleGradient: "from-primary to-secondary",
+  }
 
   return (
     <div className="min-h-screen bg-background pb-32">
@@ -695,69 +799,199 @@ export default function PlayerBoardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Game Over Results Overlay - Perfected Redesign */}
+      {/* Game Over Results Overlay - Redesigned */}
       {isGameOver && (
-        <div className="fixed inset-0 z-[200] bg-background/98 backdrop-blur-2xl flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-700">
-          {/* Decorative elements */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-500">
+          {/* Background Decor Orbs */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[120px] animate-pulse transition-colors duration-1000 ${theme.gradientOrb}`} />
+            <div className={`absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full blur-[150px] animate-pulse transition-colors duration-1000 ${theme.gradientOrb}`} style={{ animationDelay: "2s" }} />
           </div>
 
-          <div className="w-full max-w-md space-y-8 text-center relative z-10">
+          <div className="w-full max-w-4xl space-y-8 text-center relative z-10 py-8 scroll-py-8">
+            {/* Header Hero */}
             <div className="space-y-4">
-              <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-12 animate-in slide-in-from-bottom-8 duration-700">
-                <Trophy className="w-12 h-12 text-primary" />
+              <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto relative shadow-xl shadow-yellow-500/10 animate-pulse">
+                <Trophy className="w-10 h-10 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.2)]" />
+                <div className="absolute -inset-1.5 rounded-2xl border-2 border-yellow-500/30 animate-ping opacity-20" />
               </div>
-              <div className="space-y-2">
-                <h1 className="text-5xl font-black tracking-tighter italic uppercase text-primary animate-in slide-in-from-top-8 duration-700">Game Over!</h1>
-                <p className="text-muted-foreground font-medium">Performance Analysis Complete</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-1000 delay-300">
-              <Card className="bg-muted/50 border-2 border-border/50 shadow-none rounded-3xl overflow-hidden">
-                <CardContent className="pt-8 pb-8">
-                  <p className="text-5xl font-black">{markedIds.size}</p>
-                  <p className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground mt-2">Points</p>
-                </CardContent>
-              </Card>
-              <Card className="bg-muted/50 border-2 border-border/50 shadow-none rounded-3xl overflow-hidden">
-                <CardContent className="pt-8 pb-8">
-                  <p className="text-5xl font-black">
-                    {checkBingo(board, markedIds, gameData?.ticket_size).length}
-                  </p>
-                  <p className="text-[10px] uppercase font-black tracking-[0.2em] text-muted-foreground mt-2">Lines</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="bg-primary/5 border-2 border-primary/20 overflow-hidden relative shadow-none rounded-3xl animate-in fade-in duration-1000 delay-500">
-              <div className="absolute top-0 right-0 p-6 opacity-20">
-                <Sparkles className="w-16 h-16 text-primary" />
-              </div>
-              <CardContent className="pt-10 pb-10">
-                <div className="flex items-center justify-center gap-3 mb-4">
-                  <div className="w-2 h-4 bg-primary/20 rounded-full" />
-                  <div className="w-2 h-8 bg-primary/40 rounded-full" />
-                  <div className="w-2 h-12 bg-primary rounded-full" />
-                  <div className="w-2 h-8 bg-primary/40 rounded-full" />
-                  <div className="w-2 h-4 bg-primary/20 rounded-full" />
-                </div>
-                <p className="text-sm font-bold uppercase tracking-widest text-primary/70 mb-2">Match Rate</p>
-                <p className="text-4xl font-black tracking-tighter">
-                  {Math.round((markedIds.size / Math.max(calledValues.size, 1)) * 100)}% Accuracy
+              <div className="space-y-1">
+                <h1 className={`text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter italic uppercase bg-gradient-to-r ${theme.titleGradient} bg-clip-text text-transparent`}>
+                  GAME OVER!
+                </h1>
+                <p className="text-muted-foreground text-xs uppercase font-extrabold tracking-widest">
+                  Performance Analysis Complete
                 </p>
-              </CardContent>
-            </Card>
+                <p className="text-xs font-bold text-muted-foreground/80 mt-1">
+                  Final results for <span className="text-foreground font-black">{gameData?.game_name}</span>
+                </p>
+              </div>
+            </div>
 
-            <div className="pt-8 space-y-4 animate-in slide-in-from-bottom-8 duration-1000 delay-700">
-              <Button 
-                className="w-full h-16 rounded-2xl font-black text-xl shadow-2xl shadow-primary/40 hover:scale-105 active:scale-95 transition-all"
-                onClick={() => router.push("/")}
-              >
-                Return to Lobby
-              </Button>
-              <p className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest">Bingo Visual Recognition Engine v1.0</p>
+            {/* Content Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+              {/* Left Column: Stats & Actions */}
+              <div className="space-y-6">
+                <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground/80 px-1">
+                  Your Performance
+                </h2>
+                
+                {/* Personal scorecard metrics */}
+                <div className="grid grid-cols-2 gap-4">
+                  <Card className="bg-card/40 backdrop-blur-md border border-border/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
+                    <CardContent className="pt-6 pb-6 text-center">
+                      <p className={`text-4xl sm:text-5xl font-black bg-gradient-to-br ${theme.titleGradient} bg-clip-text text-transparent`}>
+                        {markedIds.size}
+                      </p>
+                      <p className="text-xs font-black text-foreground mt-2 uppercase tracking-wide">Points</p>
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-0.5">Matched Cells</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-card/40 backdrop-blur-md border border-border/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
+                    <CardContent className="pt-6 pb-6 text-center">
+                      <p className={`text-4xl sm:text-5xl font-black bg-gradient-to-br ${theme.titleGradient} bg-clip-text text-transparent`}>
+                        {checkBingo(board, markedIds, gameData?.ticket_size).length}
+                      </p>
+                      <p className="text-xs font-black text-foreground mt-2 uppercase tracking-wide">Lines</p>
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-0.5">Completed Lines</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Match Accuracy Tracker Card */}
+                <Card className="bg-card/40 backdrop-blur-md border border-border/60 shadow-sm rounded-2xl relative overflow-hidden transition-transform duration-300 hover:scale-[1.02]">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                    <Sparkles className="w-16 h-16 text-foreground" />
+                  </div>
+                  <CardContent className="p-5">
+                    <div className="flex justify-between items-center text-xs font-bold text-foreground mb-2">
+                      <span className="uppercase tracking-wider flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
+                        Match Rate
+                      </span>
+                      <span className={`font-black text-sm ${theme.accentText}`}>
+                        {Math.round((markedIds.size / Math.max(calledValues.size, 1)) * 100)}% Accuracy
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted/60 dark:bg-muted/30 rounded-full h-2.5 overflow-hidden border border-border/50 mb-2">
+                      <div 
+                        className={`h-full bg-gradient-to-r ${theme.titleGradient} transition-all duration-1000 ease-out`} 
+                        style={{ width: `${Math.min(100, (markedIds.size / Math.max(calledValues.size, 1)) * 100)}%` }} 
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Percentage of called numbers that you correctly marked on your board.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Return Actions */}
+                <div className="pt-2 space-y-4">
+                  <Button 
+                    className={`w-full h-14 rounded-2xl font-black text-lg text-white shadow-xl hover:scale-[1.02] active:scale-95 transition-all duration-300 ${theme.btnColor} ${theme.glow}`}
+                    onClick={() => router.push("/")}
+                  >
+                    Return to Lobby
+                  </Button>
+                  <p className="text-[10px] font-bold text-muted-foreground/45 uppercase tracking-[0.2em] text-center">
+                    Bingo Visual Recognition Engine v1.0
+                  </p>
+                </div>
+              </div>
+
+              {/* Right Column: Champions Board / Winner Display */}
+              <div className="space-y-6">
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
+                    <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 animate-pulse" />
+                    Champions Board
+                  </h2>
+                  <Badge variant="outline" className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wide border-current ${theme.badgeBg}`}>
+                    Verified Winners
+                  </Badge>
+                </div>
+
+                <Card className="border border-border/80 bg-card/60 backdrop-blur-md shadow-lg overflow-hidden rounded-2xl flex flex-col min-h-[280px]">
+                  <CardHeader className="py-4 px-5 border-b border-border/40 bg-muted/20">
+                    <CardTitle className="text-xs font-black text-muted-foreground flex items-center gap-1.5">
+                      <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                      LATEST WINNERS
+                    </CardTitle>
+                    <CardDescription className="text-[10px]">First players to submit valid bingo claims</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0 flex-1 overflow-y-auto max-h-[280px]">
+                    {winners.length > 0 ? (
+                      <div className="divide-y divide-border/30">
+                        {winners.map((win, idx) => {
+                          const isCurrentUser = win.player_id === playerId
+                          const rankColor = idx === 0 
+                            ? "bg-yellow-500 text-white border-yellow-400 animate-pulse" 
+                            : idx === 1 
+                            ? "bg-slate-300 text-slate-800 border-slate-200" 
+                            : idx === 2 
+                            ? "bg-amber-600 text-white border-amber-500" 
+                            : "bg-muted text-muted-foreground border-border"
+
+                          return (
+                            <div 
+                              key={win.id} 
+                              className={`flex items-center justify-between p-3.5 hover:bg-muted/10 transition-colors ${
+                                isCurrentUser ? "bg-primary/5 border-l-4 border-l-yellow-500" : ""
+                              }`}
+                            >
+                              <div className="flex items-center gap-3.5 min-w-0">
+                                <div className={`w-8 h-8 rounded-full border-2 ${rankColor} flex items-center justify-center font-black text-xs flex-shrink-0 shadow-sm`}>
+                                  {idx + 1}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-extrabold text-sm text-foreground truncate max-w-[140px] sm:max-w-[200px]">
+                                      {win.players?.display_name || "Unknown Player"}
+                                    </p>
+                                    {isCurrentUser && (
+                                      <Badge className="bg-yellow-500 hover:bg-yellow-600 text-[8px] font-black tracking-wider px-1.5 py-0 h-4 uppercase">
+                                        YOU
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <Badge variant="secondary" className="text-[9px] uppercase px-1.5 py-0 font-bold mt-0.5">
+                                      {win.claim_type.replace(/_/g, " ")}
+                                    </Badge>
+                                    {win.claim_data?.type && win.claim_data.type !== win.claim_type && (
+                                      <span className="text-[9px] text-muted-foreground/80 font-medium">
+                                        {win.claim_data.type.replace(/_/g, " ")}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                <span className="text-[10px] text-muted-foreground font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/10">
+                                  {new Date(win.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-12 flex flex-col items-center justify-center text-center space-y-3 h-full">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                          <Crown className="w-6 h-6 opacity-30" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs font-extrabold text-foreground uppercase tracking-wider">No Claims Verified Yet</p>
+                          <p className="text-[10px] text-muted-foreground max-w-[240px]">
+                            Waiting for players to submit claims or for host to verify them.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
         </div>
