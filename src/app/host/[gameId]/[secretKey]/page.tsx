@@ -21,7 +21,7 @@ import { toast } from "sonner"
 import {
   Play, Pause, RotateCcw, LogOut, Edit3, Trash2, Copy, Users, Clock,
   Volume2, VolumeX, Share2, ChevronLeft, Hash, Check, X, Zap, ShieldCheck,
-  ChevronDown, ChevronUp, Link2,
+  ChevronDown, ChevronUp, Link2, Loader2, Sparkles,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CLAIM_DISPLAY_INFO } from "@/lib/claim-validator"
@@ -83,6 +83,31 @@ export default function HostDashboardPage() {
   const [autoCallActive, setAutoCallActive] = useState(false)
   const autoCallRef = useRef<NodeJS.Timeout | null>(null)
   const [isBollywoodExpanded, setIsBollywoodExpanded] = useState(false)
+
+  const [localPrizes, setLocalPrizes] = useState<Record<string, string>>({
+    early_five: "",
+    top_row: "",
+    middle_row: "",
+    bottom_row: "",
+    corners: "",
+    full_house: "",
+  })
+  const [isSavingPrizes, setIsSavingPrizes] = useState(false)
+  const [showPrizesDialog, setShowPrizesDialog] = useState(false)
+
+  useEffect(() => {
+    const savedPrizes = typeof window !== "undefined" ? localStorage.getItem(`prizes_${gameId}`) : null
+    const prizesObj = gameData?.prizes || (savedPrizes ? JSON.parse(savedPrizes) : {})
+    
+    setLocalPrizes({
+      early_five: prizesObj.early_five || "",
+      top_row: prizesObj.top_row || "",
+      middle_row: prizesObj.middle_row || "",
+      bottom_row: prizesObj.bottom_row || "",
+      corners: prizesObj.corners || "",
+      full_house: prizesObj.full_house || "",
+    })
+  }, [gameData, gameId])
 
   // ============ Auth Check ============
   useEffect(() => {
@@ -262,6 +287,23 @@ export default function HostDashboardPage() {
   const handleUpdateMapping = async (id: string, name: string, dialogue: string, image_url: string) => {
     try {
       await supabase.from("bollywood_mappings").update({ movie_name: name, dialogue, image_url }).eq("id", id)
+      
+      const updatedItem = bollywoodMappings.find(m => m.id === id)
+      if (updatedItem) {
+        if (typeof window !== "undefined") {
+          const savedCustom = localStorage.getItem("custom_bollywood_mappings")
+          let customList = savedCustom ? JSON.parse(savedCustom) : []
+          customList = customList.filter((c: any) => c.number !== updatedItem.number)
+          customList.push({
+            number: updatedItem.number,
+            movie_name: name,
+            dialogue,
+            image_url
+          })
+          localStorage.setItem("custom_bollywood_mappings", JSON.stringify(customList))
+        }
+      }
+
       setBollywoodMappings(prev => prev.map(m => m.id === id ? { ...m, movie_name: name, dialogue, image_url } : m))
       setEditingItem(null)
       toast.success("Mapping updated")
@@ -298,6 +340,40 @@ export default function HostDashboardPage() {
       setShowResetDialog(false)
       toast.success("Game reset!")
     } catch { toast.error("Failed") }
+  }
+
+  const handleSavePrizes = async () => {
+    setIsSavingPrizes(true)
+    try {
+      // 1. Try saving to Supabase
+      const { error } = await supabase
+        .from("games")
+        .update({ prizes: localPrizes })
+        .eq("id", gameId)
+
+      // 2. Save locally as fallback
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`prizes_${gameId}`, JSON.stringify(localPrizes))
+      }
+
+      if (error) {
+        if (error.message?.includes("prizes")) {
+          toast.warning("Saved locally. Run SQL to enable DB syncing.", {
+            description: "ALTER TABLE games ADD COLUMN IF NOT EXISTS prizes jsonb DEFAULT '{}'::jsonb;",
+            duration: 8000
+          })
+        } else {
+          throw error
+        }
+      } else {
+        toast.success("Prizes updated successfully!")
+      }
+    } catch (err: any) {
+      console.error("Failed to save prizes:", err)
+      toast.error("Failed to save prizes")
+    } finally {
+      setIsSavingPrizes(false)
+    }
   }
 
   const copyGameCode = () => {
@@ -594,6 +670,14 @@ export default function HostDashboardPage() {
               </div>
               
               <div className="flex flex-wrap items-center justify-center gap-3 w-full md:w-auto">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowPrizesDialog(true)} 
+                  className="font-bold border-amber-200/60 text-amber-605 hover:bg-amber-50"
+                >
+                  <Sparkles className="w-4 h-4 mr-2 text-amber-550 fill-amber-500/10" />
+                  Set Prizes 🎁
+                </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => setShowEndDialog(true)} 
@@ -931,6 +1015,7 @@ export default function HostDashboardPage() {
                           </span>
                         )}
                       </TabsTrigger>
+                      <TabsTrigger value="prizes">Prizes</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="history">
@@ -941,27 +1026,53 @@ export default function HostDashboardPage() {
                               const mapping = gameData?.game_type === "bollywood" 
                                 ? bollywoodMappings.find(m => m.number.toString() === item.value.toString())
                                 : null
+                              const isBollywood = gameData?.game_type === "bollywood"
                               
                               return (
                                 <div key={item.id}
-                                  className="group relative rounded-xl border border-slate-200 bg-white hover:border-[#2563EB]/40 hover:shadow-md transition-all aspect-video overflow-hidden shadow-sm animate-in zoom-in-95 duration-300">
-                                  {mapping?.image_url ? (
-                                    <img src={mapping.image_url} className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-500" />
+                                  className={`group relative rounded-xl border overflow-hidden shadow-sm animate-in zoom-in-95 duration-300 transition-all hover:shadow-md ${
+                                    isBollywood 
+                                      ? "border-slate-200 bg-white hover:border-[#2563EB]/40 aspect-video" 
+                                      : "border-slate-200/80 aspect-[4/3] cursor-default"
+                                  }`}>
+                                  
+                                  {isBollywood ? (
+                                    /* ===== Bollywood Card: image background ===== */
+                                    <>
+                                      {mapping?.image_url ? (
+                                        <img src={mapping.image_url} className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-500" />
+                                      ) : (
+                                        <div className="w-full h-full bg-slate-50 flex items-center justify-center">
+                                          <span className="text-4xl font-black text-slate-350">{item.value}</span>
+                                        </div>
+                                      )}
+                                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
+                                        <span className="text-white font-bold text-xs">#{item.value}</span>
+                                        {mapping && <p className="text-white/70 text-[9px] truncate">{mapping.movie_name}</p>}
+                                      </div>
+                                      <span className="text-[9px] font-black absolute top-2 left-2 w-5 h-5 rounded-full bg-white shadow-sm text-slate-800 flex items-center justify-center">
+                                        {item.callOrder}
+                                      </span>
+                                    </>
                                   ) : (
-                                    <div className="w-full h-full bg-slate-50 flex items-center justify-center">
-                                      <span className="text-4xl font-black text-slate-350">{item.value}</span>
+                                    /* ===== Number Card: gradient style ===== */
+                                    <div className="w-full h-full bg-gradient-to-b from-white via-slate-100 to-slate-400 flex items-center justify-center relative">
+                                      {/* Call order badge */}
+                                      <span className="absolute top-1.5 left-2 text-[10px] font-black text-slate-500 bg-white/70 backdrop-blur-sm rounded px-1 py-0.5 leading-none shadow-sm border border-slate-200/60">
+                                        {item.callOrder}
+                                      </span>
+                                      {/* Large centered number */}
+                                      <span className="text-4xl sm:text-5xl font-black text-slate-800 tracking-tight select-none drop-shadow-sm">
+                                        {item.value}
+                                      </span>
+                                      {/* Bottom-left value tag */}
+                                      <span className="absolute bottom-1.5 left-2 text-[10px] font-bold text-slate-600">
+                                        #{item.value}
+                                      </span>
                                     </div>
                                   )}
-                                  
-                                  <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
-                                    <span className="text-white font-bold text-xs">#{item.value}</span>
-                                    {mapping && <p className="text-white/70 text-[9px] truncate">{mapping.movie_name}</p>}
-                                  </div>
 
-                                  <span className="text-[9px] font-black absolute top-2 left-2 w-5 h-5 rounded-full bg-white shadow-sm text-slate-800 flex items-center justify-center">
-                                    {item.callOrder}
-                                  </span>
-                                  
+                                  {/* Delete overlay on hover */}
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-red-500 rounded-lg hover:bg-white/10" onClick={() => handleDeleteItem(item)}>
                                       <Trash2 className="w-4 h-4" />
@@ -1057,6 +1168,74 @@ export default function HostDashboardPage() {
                         </CardContent>
                       </Card>
                     </TabsContent>
+
+                    <TabsContent value="prizes">
+                      <Card className="min-h-[450px] border border-slate-200/60 bg-white rounded-2xl shadow-sm">
+                        <CardHeader className="pb-4 border-b border-slate-100 bg-slate-50/50">
+                          <CardTitle className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                            <Sparkles className="w-4 h-4 text-amber-500" />
+                            SET WINNER PRIZES
+                          </CardTitle>
+                          <CardDescription className="text-xs">Specify the vouchers, cash prizes, coupons, or gifts for each of the 6 claim types.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-6 space-y-4">
+                          {(() => {
+                            const types = [
+                              { key: "early_five", label: "Early Five", icon: "🏆", placeholder: "e.g. Amazon Gift Card" },
+                              { key: "top_row", label: "Top Line", icon: "⬆️", placeholder: "e.g. Rs. 100 Cash" },
+                              { key: "middle_row", label: "Middle Line", icon: "➡️", placeholder: "e.g. Movie Voucher" },
+                              { key: "bottom_row", label: "Bottom Line", icon: "⬇️", placeholder: "e.g. Starbucks Coupon" },
+                              { key: "corners", label: "Four Corners", icon: "⭐", placeholder: "e.g. Surprise Gift Box" },
+                              { key: "full_house", label: "Full House", icon: "🏅", placeholder: "e.g. Grand Prize Hamper" },
+                            ]
+
+                            return (
+                              <div className="space-y-4 max-w-xl">
+                                <div className="grid gap-4">
+                                  {types.map((type) => (
+                                    <div key={type.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl border border-slate-150 hover:border-slate-300 transition-colors">
+                                      <div className="flex items-center gap-2.5 min-w-[140px]">
+                                        <span className="text-xl">{type.icon}</span>
+                                        <span className="font-extrabold text-xs text-slate-700">{type.label}</span>
+                                      </div>
+                                      <div className="flex-1 w-full relative">
+                                        <Input
+                                          value={localPrizes[type.key] || ""}
+                                          onChange={(e) => setLocalPrizes(prev => ({ ...prev, [type.key]: e.target.value }))}
+                                          placeholder={type.placeholder}
+                                          className="h-10 rounded-xl pr-10 border-slate-200/80 focus-visible:ring-1 focus-visible:ring-blue-500 font-medium text-xs bg-slate-50/50 hover:bg-slate-50"
+                                        />
+                                        <span className="absolute right-3 top-3 text-slate-350">🎁</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                
+                                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                                  <Button 
+                                    className="h-11 rounded-xl px-6 font-black text-xs bg-[#2563EB] hover:bg-[#1D4ED8]"
+                                    onClick={handleSavePrizes}
+                                    disabled={isSavingPrizes}
+                                  >
+                                    {isSavingPrizes ? (
+                                      <>
+                                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                                        SAVING...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 mr-1.5" />
+                                        SAVE PRIZES
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
                   </Tabs>
                 </div>
               </div>
@@ -1122,7 +1301,7 @@ export default function HostDashboardPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Number</Label>
-              <Input value={editingItem?.number} disabled className="bg-muted" />
+              <Input value={editingItem?.number ?? ""} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
               <Label>Movie Name</Label>
@@ -1153,6 +1332,72 @@ export default function HostDashboardPage() {
             <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
             <Button onClick={() => handleUpdateMapping(editingItem.id, editValue, editingItem.dialogue, editingItem.image_url)}>
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Configure Prizes Dialog */}
+      <Dialog open={showPrizesDialog} onOpenChange={setShowPrizesDialog}>
+        <DialogContent className="max-w-md rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+              Set Winner Prizes
+            </DialogTitle>
+            <DialogDescription>
+              Specify prizes like vouchers, cash, or gifts for each claim pattern. These will be shown on results page.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-4 max-h-[60vh] overflow-y-auto pr-1">
+            {(() => {
+              const types = [
+                { key: "early_five", label: "Early Five", icon: "🏆", placeholder: "e.g. Amazon Gift Card" },
+                { key: "top_row", label: "Top Line", icon: "⬆️", placeholder: "e.g. Rs. 100 Cash" },
+                { key: "middle_row", label: "Middle Line", icon: "➡️", placeholder: "e.g. Movie Voucher" },
+                { key: "bottom_row", label: "Bottom Line", icon: "⬇️", placeholder: "e.g. Starbucks Coupon" },
+                { key: "corners", label: "Four Corners", icon: "⭐", placeholder: "e.g. Surprise Gift Box" },
+                { key: "full_house", label: "Full House", icon: "🏅", placeholder: "e.g. Grand Prize Hamper" },
+              ]
+
+              return types.map((type) => (
+                <div key={type.key} className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-150 bg-slate-50/50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{type.icon}</span>
+                    <span className="font-extrabold text-xs text-slate-700">{type.label}</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      value={localPrizes[type.key] || ""}
+                      onChange={(e) => setLocalPrizes(prev => ({ ...prev, [type.key]: e.target.value }))}
+                      placeholder={type.placeholder}
+                      className="h-10 rounded-xl pr-10 border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-500 font-medium text-xs bg-white"
+                    />
+                    <span className="absolute right-3 top-3 text-slate-350">🎁</span>
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+
+          <DialogFooter className="flex-row gap-2 mt-4">
+            <Button 
+              variant="outline"
+              className="flex-1 h-12 rounded-xl text-xs font-bold border-slate-200"
+              onClick={() => setShowPrizesDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              className="flex-1 h-12 rounded-xl text-xs font-black bg-[#2563EB] hover:bg-[#1D4ED8]"
+              onClick={async () => {
+                await handleSavePrizes()
+                setShowPrizesDialog(false)
+              }}
+              disabled={isSavingPrizes}
+            >
+              {isSavingPrizes ? "Saving..." : "Save Prizes"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -99,36 +99,62 @@ export default function ResultsPage() {
               <CardDescription>First players to claim bingo</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {winners.length > 0 ? (
-                <div className="divide-y">
-                  {winners.map((win, idx) => (
-                    <div key={win.id} className="flex items-center justify-between p-4 bg-yellow-400/5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-yellow-500 text-white flex items-center justify-center font-bold text-xs">
-                          #{idx + 1}
+              {(() => {
+                const types = [
+                  "early_five",
+                  "top_row",
+                  "middle_row",
+                  "bottom_row",
+                  "corners",
+                  "full_house"
+                ] as const
+
+                return (
+                  <div className="divide-y divide-slate-100">
+                    {types.map((type) => {
+                      const info = CLAIM_DISPLAY_INFO[type]
+                      const claimWinner = winners.find(win => {
+                        const uiType = (win.claim_data as any)?.type || win.claim_type
+                        return uiType === type
+                      })
+                      const savedPrizes = typeof window !== 'undefined' ? localStorage.getItem("prizes_" + gameId) : null
+                      const prizesObj = gameData?.prizes || (savedPrizes ? JSON.parse(savedPrizes) : {})
+                      const prize = prizesObj[type]
+
+                      return (
+                        <div key={type} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-2 hover:bg-slate-50/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl flex-shrink-0">{info?.icon || "🏆"}</span>
+                            <div>
+                              <p className="font-extrabold text-sm text-slate-800">{info?.label || type}</p>
+                              {prize && (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-full mt-1.5 animate-in fade-in">
+                                  <span>🎁</span>
+                                  <span className="uppercase tracking-wider text-[9px] text-amber-500/80 mr-0.5">Prize:</span>
+                                  {prize}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 self-start sm:self-center">
+                            {claimWinner ? (
+                              <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 hover:bg-emerald-100 font-black px-2.5 py-1 text-xs rounded-full flex items-center gap-1">
+                                <Trophy className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                <span>{claimWinner.players?.display_name || "Winner"}</span>
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-slate-400 font-bold bg-slate-100 border border-slate-200/60 px-2.5 py-1 rounded-full">
+                                Unclaimed
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-black text-sm">{win.players?.display_name}</p>
-                          <Badge variant="outline" className="text-[9px] px-2 flex items-center gap-1">
-                            {(() => {
-                              const uiType = (win.claim_data as any)?.type || win.claim_type
-                              const info = CLAIM_DISPLAY_INFO[uiType as keyof typeof CLAIM_DISPLAY_INFO]
-                              return info ? `${info.icon} ${info.label}` : uiType.replace(/_/g, " ")
-                            })()}
-                          </Badge>
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground font-mono">
-                        {new Date(win.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-muted-foreground italic text-sm">
-                  No claims were made in this session.
-                </div>
-              )}
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </CardContent>
           </Card>
 

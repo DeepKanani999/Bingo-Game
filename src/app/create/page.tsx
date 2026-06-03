@@ -30,7 +30,7 @@ import { getDefaultBollywoodMappings } from "@/lib/bollywood-data"
 const createGameSchema = z.object({
   gameName: z.string().min(1, "Game name required").max(50),
   hostName: z.string().min(1, "Host name required").max(30),
-  gameType: z.enum(["number", "bollywood", "custom"]),
+  gameType: z.enum(["number", "bollywood"]),
   ticketSize: z.enum(["5x5", "3x9", "9x10"]),
   numberRange: z.number().min(25).max(90).optional(),
   maxPlayers: z.number().min(2).max(50),
@@ -91,9 +91,32 @@ export default function CreateGamePage() {
 
       if (gameError) throw gameError
 
-      // If bollywood, seed default mappings
+      // If bollywood, seed mappings (with localStorage fallback for edits)
       if (data.gameType === "bollywood") {
-        const mappings = getDefaultBollywoodMappings().map((m) => ({
+        let itemsBase = getDefaultBollywoodMappings()
+        
+        if (typeof window !== "undefined") {
+          const savedCustom = localStorage.getItem("custom_bollywood_mappings")
+          if (savedCustom) {
+            try {
+              const customList = JSON.parse(savedCustom)
+              // Merge/override default mappings with custom edited ones
+              itemsBase = itemsBase.map(item => {
+                const override = customList.find((c: any) => c.number === item.number)
+                return override ? { ...item, ...override } : item
+              })
+              
+              // Also add any entirely new numbers added
+              const existingNumbers = new Set(itemsBase.map(i => i.number))
+              const newItems = customList.filter((c: any) => !existingNumbers.has(c.number))
+              itemsBase = [...itemsBase, ...newItems].sort((a, b) => a.number - b.number)
+            } catch (e) {
+              console.error("Error parsing custom bollywood mappings:", e)
+            }
+          }
+        }
+
+        const mappings = itemsBase.map((m) => ({
           game_id: gameId,
           number: m.number,
           movie_name: m.movie_name,
@@ -260,11 +283,10 @@ export default function CreateGamePage() {
                     name="gameType"
                     control={form.control}
                     render={({ field }) => (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
                           { value: "number", icon: "🎲", title: "Number", desc: "Classic 1–90 numbers" },
                           { value: "bollywood", icon: "🎬", title: "Bollywood", desc: "Movies & dialogues" },
-                          { value: "custom", icon: "✏️", title: "Custom", desc: "Your own items" },
                         ].map((type) => (
                           <button
                             key={type.value}

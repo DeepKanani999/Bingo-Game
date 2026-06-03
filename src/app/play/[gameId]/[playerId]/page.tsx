@@ -104,6 +104,20 @@ export default function PlayerBoardPage() {
   // Store actions
   const setPlayerIdentity = usePlayerStore((s) => s.setPlayerIdentity)
 
+  const fetchWinners = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("claims")
+        .select("*, players(display_name)")
+        .eq("game_id", gameId)
+        .eq("status", "approved")
+        .order("created_at", { ascending: true })
+      if (data) setWinners(data)
+    } catch (err) {
+      console.error("Error fetching winners:", err)
+    }
+  }, [gameId])
+
   // ============ Initial Load ============
   const loadData = useCallback(async () => {
     if (hasLoadedRef.current) return
@@ -236,6 +250,9 @@ export default function PlayerBoardPage() {
       
       setPlayerClaims(clData || [])
 
+      // Fetch all winners (approved claims) for the game to disable claimed options
+      await fetchWinners()
+
     } catch (error) {
       console.error("Load error:", error)
       toast.error("Failed to load game")
@@ -243,21 +260,7 @@ export default function PlayerBoardPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [gameId, playerId, router, setPlayerIdentity]) // Removed bollywoodMappings from deps
-
-  const fetchWinners = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("claims")
-        .select("*, players(display_name)")
-        .eq("game_id", gameId)
-        .eq("status", "approved")
-        .order("created_at", { ascending: true })
-      if (data) setWinners(data)
-    } catch (err) {
-      console.error("Error fetching winners:", err)
-    }
-  }, [gameId])
+  }, [gameId, playerId, router, setPlayerIdentity, fetchWinners]) // Removed bollywoodMappings from deps
 
   useEffect(() => {
     loadData()
@@ -274,7 +277,7 @@ export default function PlayerBoardPage() {
           const mapping = mappingsRef.current.find(m => m.number.toString() === item.item_id.toString())
           setLastCalledMapping(mapping)
         }
-        toast.info(`New number: ${item.item_id}`, { position: "bottom-center" })
+        toast.info(`New number: ${item.item_id}`, { position: "top-center" })
       },
       onGameStatusChanged: (payload) => {
         if (payload.new.status === "ended") {
@@ -367,27 +370,20 @@ export default function PlayerBoardPage() {
       const gridConfig = getGridConfig(gameData.ticket_size as TicketSize)
       let claimIndex: number | undefined
 
-      // DB enum only supports these; keep richer UI claim type in claim_data.type
-      const dbClaimType: "row" | "column" | "diagonal" | "full_house" =
-        selectedClaimType === "top_row" || selectedClaimType === "middle_row" || selectedClaimType === "bottom_row"
-          ? "row"
-          : selectedClaimType === "row" || selectedClaimType === "column" || selectedClaimType === "diagonal" || selectedClaimType === "full_house"
-            ? selectedClaimType
-            : "full_house"
-
-      const isApprovedDuplicate = (dbType: string, index?: number, uiType?: string) =>
-        playerClaims.some((c) => {
-          if (c.status !== "approved" || c.claim_type !== dbType) return false
+      const isAlreadyApproved = (claimType: string, index?: number) =>
+        winners.some((c) => {
+          if (c.status !== "approved") return false
+          const storedType = (c.claim_data as any)?.type || c.claim_type
+          if (storedType !== claimType) return false
           const data = (c.claim_data as any) || {}
           if (index !== undefined) return Number(data.index) === index
-          if (uiType) return data.type === uiType
           return true
         })
 
       // 1) Resolve index for claims that need one
       if (selectedClaimType === "row") {
         for (let i = 0; i < gridConfig.rows; i++) {
-          if (isApprovedDuplicate("row", i)) continue
+          if (isAlreadyApproved("row", i)) continue
           const res = validateClaim("row", i, board, markedIds, calledValues, gameData.ticket_size as TicketSize)
           if (res.valid) {
             claimIndex = i
@@ -396,7 +392,7 @@ export default function PlayerBoardPage() {
         }
       } else if (selectedClaimType === "column") {
         for (let i = 0; i < gridConfig.cols; i++) {
-          if (isApprovedDuplicate("column", i)) continue
+          if (isAlreadyApproved("column", i)) continue
           const res = validateClaim("column", i, board, markedIds, calledValues, gameData.ticket_size as TicketSize)
           if (res.valid) {
             claimIndex = i
@@ -404,11 +400,11 @@ export default function PlayerBoardPage() {
           }
         }
       } else if (selectedClaimType === "diagonal") {
-        if (!isApprovedDuplicate("diagonal", 0)) {
+        if (!isAlreadyApproved("diagonal", 0)) {
           const d0 = validateClaim("diagonal", 0, board, markedIds, calledValues, gameData.ticket_size as TicketSize)
           if (d0.valid) claimIndex = 0
         }
-        if (claimIndex === undefined && !isApprovedDuplicate("diagonal", 1)) {
+        if (claimIndex === undefined && !isAlreadyApproved("diagonal", 1)) {
           const d1 = validateClaim("diagonal", 1, board, markedIds, calledValues, gameData.ticket_size as TicketSize)
           if (d1.valid) claimIndex = 1
         }
@@ -420,14 +416,22 @@ export default function PlayerBoardPage() {
         claimIndex = gridConfig.rows - 1
       }
 
-      // 2) Local duplicate guard
-      const isDup =
-        claimIndex !== undefined
-          ? isApprovedDuplicate(dbClaimType, claimIndex)
-          : isApprovedDuplicate(dbClaimType, undefined, selectedClaimType)
+      // 2) Game-wide duplicate guard
+      const existingWinner = winners.find((c) => {
+        if (c.status !== "approved") return false
+        const storedType = (c.claim_data as any)?.type || c.claim_type
+        if (storedType !== selectedClaimType) return false
+        const data = (c.claim_data as any) || {}
+        if (claimIndex !== undefined) return Number(data.index) === claimIndex
+        return true
+      })
 
-      if (isDup) {
-        toast.error("You have already won this prize!")
+      if (existingWinner) {
+        if (existingWinner.player_id === playerId) {
+          toast.error("You have already won this prize!")
+        } else {
+          toast.error(`This prize has already been claimed by ${existingWinner.players?.display_name || "another player"}!`)
+        }
         return
       }
 
@@ -441,7 +445,7 @@ export default function PlayerBoardPage() {
       const claimPayload: Record<string, any> = {
           game_id: gameId,
           player_id: playerId,
-          claim_type: dbClaimType,
+          claim_type: selectedClaimType,
           claim_data: { 
             index: claimIndex, 
             type: selectedClaimType, 
@@ -482,6 +486,7 @@ export default function PlayerBoardPage() {
       }
 
       setPlayerClaims(prev => [...prev, newClaim])
+      await fetchWinners()
       toast.success(`Success! Your ${selectedClaimType.replace("_", " ")} claim was approved.`)
       setShowClaimDialog(false)
     } catch (error: any) {
@@ -746,10 +751,12 @@ export default function PlayerBoardPage() {
 
               return types.map((type) => {
                 const info = CLAIM_DISPLAY_INFO[type]
-                const isClaimed = playerClaims.some(c => 
+                const claimWinner = winners.find(c => 
                   (c.claim_type === type || (c.claim_data as any)?.type === type) && 
                   c.status === "approved"
                 )
+                const isClaimed = !!claimWinner
+                const isMyClaim = claimWinner?.player_id === playerId
                 
                 return (
                   <button
@@ -757,16 +764,54 @@ export default function PlayerBoardPage() {
                     onClick={() => setSelectedClaimType(type)}
                     disabled={isClaimed}
                     className={`
-                      p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-2 relative overflow-hidden
-                      ${selectedClaimType === type ? "border-primary bg-primary/5" : "border-border hover:border-primary/20"}
-                      ${isClaimed ? "opacity-50 grayscale cursor-not-allowed bg-muted/20" : ""}
+                      p-4 rounded-2xl border-2 transition-all text-left flex flex-col justify-between h-28 relative overflow-hidden group
+                      ${selectedClaimType === type 
+                        ? "border-[#2563EB] bg-[#EFF6FF]/40 shadow-sm" 
+                        : "border-slate-200 hover:border-slate-350 hover:bg-slate-50/30"
+                      }
+                      ${isClaimed 
+                        ? isMyClaim 
+                          ? "border-green-200 bg-green-50/20 text-green-700 cursor-not-allowed" 
+                          : "border-slate-200 bg-slate-50/60 opacity-60 cursor-not-allowed"
+                        : ""
+                      }
                     `}
                   >
-                    <span className="text-2xl">{info.icon}</span>
-                    <span className="font-bold text-sm">{info.label}</span>
-                    {isClaimed && (
-                      <div className="absolute top-1 right-1">
-                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    <div className="flex flex-col gap-1">
+                      <span className={`text-2xl transition-transform duration-300 ${!isClaimed && "group-hover:scale-110"}`}>{info.icon}</span>
+                      <span className={`font-bold text-xs tracking-tight ${isMyClaim ? "text-green-800" : isClaimed ? "text-slate-500" : "text-slate-800"}`}>
+                        {info.label}
+                      </span>
+                    </div>
+                    
+                    {isClaimed ? (
+                      isMyClaim ? (
+                        <div className="flex items-center gap-1 mt-auto">
+                          <Check className="w-3 h-3 text-green-500 flex-shrink-0" />
+                          <span className="text-[9px] font-black uppercase text-green-600 tracking-wider">YOURS!</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 mt-auto min-w-0">
+                          <Trophy className="w-3 h-3 text-slate-450 flex-shrink-0" />
+                          <span className="text-[9px] font-bold text-slate-450 truncate uppercase tracking-wider">
+                            {claimWinner.players?.display_name || "Claimed"}
+                          </span>
+                        </div>
+                      )
+                    ) : null}
+
+                    {isClaimed && isMyClaim && (
+                      <div className="absolute top-2 right-2">
+                        <div className="bg-green-100 text-green-700 p-0.5 rounded-full border border-green-200">
+                          <Check className="w-2.5 h-2.5" />
+                        </div>
+                      </div>
+                    )}
+                    {isClaimed && !isMyClaim && (
+                      <div className="absolute top-2 right-2">
+                        <div className="bg-slate-200 text-slate-600 p-0.5 rounded-full border border-slate-300">
+                          <X className="w-2.5 h-2.5" />
+                        </div>
                       </div>
                     )}
                   </button>
@@ -909,75 +954,77 @@ export default function PlayerBoardPage() {
                     </CardTitle>
                     <CardDescription className="text-[10px]">First players to submit valid bingo claims</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-0 flex-1 overflow-y-auto max-h-[280px]">
-                    {winners.length > 0 ? (
-                      <div className="divide-y divide-slate-100">
-                        {winners.map((win, idx) => {
-                          const isCurrentUser = win.player_id === playerId
-                          const rankColor = idx === 0 
-                            ? "bg-yellow-500 text-white border-yellow-400 animate-pulse" 
-                            : idx === 1 
-                            ? "bg-slate-300 text-slate-800 border-slate-200" 
-                            : idx === 2 
-                            ? "bg-amber-600 text-white border-amber-500" 
-                            : "bg-slate-100 text-slate-500 border-slate-200"
+                  <CardContent className="p-0 flex-1 overflow-y-auto max-h-[350px]">
+                    {(() => {
+                      const types = [
+                        "early_five",
+                        "top_row",
+                        "middle_row",
+                        "bottom_row",
+                        "corners",
+                        "full_house"
+                      ] as const
 
-                          return (
-                            <div 
-                              key={win.id} 
-                              className={`flex items-center justify-between p-3.5 hover:bg-slate-50/50 transition-colors ${
-                                isCurrentUser ? "bg-blue-50/40 border-l-4 border-l-blue-500" : ""
-                              }`}
-                            >
-                              <div className="flex items-center gap-3.5 min-w-0">
-                                <div className={`w-8 h-8 rounded-full border-2 ${rankColor} flex items-center justify-center font-black text-xs flex-shrink-0 shadow-sm`}>
-                                  {idx + 1}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-extrabold text-sm text-slate-800 truncate max-w-[140px] sm:max-w-[200px]">
-                                      {win.players?.display_name || "Unknown Player"}
-                                    </p>
-                                    {isCurrentUser && (
-                                      <Badge className="bg-blue-50 text-[#2563EB] border border-blue-200 hover:bg-blue-100 text-[8px] font-black tracking-wider px-1.5 py-0 h-4 uppercase">
-                                        YOU
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 mt-1">
-                                    <Badge variant="secondary" className="text-[9px] uppercase px-1.5 py-0 font-bold mt-0.5 bg-slate-100 text-slate-700">
-                                      {win.claim_type.replace(/_/g, " ")}
-                                    </Badge>
-                                    {win.claim_data?.type && win.claim_data.type !== win.claim_type && (
-                                      <span className="text-[9px] text-slate-400 font-medium">
-                                        {win.claim_data.type.replace(/_/g, " ")}
+                      return (
+                        <div className="divide-y divide-slate-100">
+                          {types.map((type) => {
+                            const info = CLAIM_DISPLAY_INFO[type]
+                            const claimWinner = winners.find(win => {
+                              const uiType = (win.claim_data as any)?.type || win.claim_type
+                              return uiType === type
+                            })
+                            const isCurrentUser = claimWinner?.player_id === playerId
+                            const savedPrizes = typeof window !== 'undefined' ? localStorage.getItem("prizes_" + gameId) : null
+                            const prizesObj = gameData?.prizes || (savedPrizes ? JSON.parse(savedPrizes) : {})
+                            const prize = prizesObj[type]
+
+                            return (
+                              <div 
+                                key={type} 
+                                className={`flex items-center justify-between p-3.5 hover:bg-slate-50/30 transition-colors ${
+                                  isCurrentUser ? "bg-blue-50/30 border-l-4 border-l-blue-500" : ""
+                                }`}
+                              >
+                                <div className="flex items-center gap-3.5 min-w-0">
+                                  <span className="text-2xl flex-shrink-0">{info?.icon || "🏆"}</span>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-extrabold text-sm text-slate-800">
+                                        {info?.label || type}
+                                      </p>
+                                    </div>
+                                    {prize && (
+                                      <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded-full mt-1.5 animate-in fade-in max-w-[150px] truncate">
+                                        <span>🎁</span>
+                                        <span className="uppercase tracking-wider text-[8px] text-amber-500/80 mr-0.5">Prize:</span>
+                                        {prize}
                                       </span>
                                     )}
                                   </div>
                                 </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  {claimWinner ? (
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold px-2 py-0.5 text-[10px] rounded-full flex items-center gap-1">
+                                        <Trophy className="w-2.5 h-2.5 text-yellow-500 fill-yellow-500" />
+                                        <span className="truncate max-w-[80px] sm:max-w-[120px]">{claimWinner.players?.display_name || "Winner"}</span>
+                                      </Badge>
+                                      {isCurrentUser && (
+                                        <span className="text-[8px] font-black text-blue-600 tracking-wider">YOUR WIN!</span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-bold bg-slate-100 border border-slate-200/60 px-2 py-0.5 rounded-full">
+                                      Unclaimed
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                                  {new Date(win.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                </span>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <div className="p-12 flex flex-col items-center justify-center text-center space-y-3 h-full">
-                        <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
-                          <Crown className="w-6 h-6 opacity-30" />
+                            )
+                          })}
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">No Claims Verified Yet</p>
-                          <p className="text-[10px] text-slate-400 max-w-[240px]">
-                            Waiting for players to submit claims or for host to verify them.
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                      )
+                    })()}
                   </CardContent>
                 </Card>
               </div>

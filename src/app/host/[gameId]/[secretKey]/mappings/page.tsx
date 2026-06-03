@@ -114,6 +114,21 @@ export default function MappingEditorPage() {
         .single()
       
       if (error) throw error
+
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        const savedCustom = localStorage.getItem("custom_bollywood_mappings")
+        let customList = savedCustom ? JSON.parse(savedCustom) : []
+        customList = customList.filter((c: any) => c.number !== num)
+        customList.push({
+          number: num,
+          movie_name: newMapping.movie_name,
+          dialogue: newMapping.dialogue,
+          image_url: newMapping.image_url
+        })
+        localStorage.setItem("custom_bollywood_mappings", JSON.stringify(customList))
+      }
+
       setMappings(prev => [...prev, data].sort((a, b) => a.number - b.number))
       setIsAdding(false)
       setNewMapping({ number: "", movie_name: "", dialogue: "", image_url: "" })
@@ -125,7 +140,19 @@ export default function MappingEditorPage() {
 
   const handleDelete = async (id: string) => {
     try {
+      const deletedItem = mappings.find(m => m.id === id)
       await supabase.from("bollywood_mappings").delete().eq("id", id)
+
+      // Remove from localStorage
+      if (deletedItem && typeof window !== "undefined") {
+        const savedCustom = localStorage.getItem("custom_bollywood_mappings")
+        if (savedCustom) {
+          let customList = JSON.parse(savedCustom)
+          customList = customList.filter((c: any) => c.number !== deletedItem.number)
+          localStorage.setItem("custom_bollywood_mappings", JSON.stringify(customList))
+        }
+      }
+
       setMappings(prev => prev.filter(m => m.id !== id))
       toast.success("Mapping deleted")
     } catch {
@@ -152,6 +179,18 @@ export default function MappingEditorPage() {
       const { data: inserted, error } = await supabase.from("bollywood_mappings").insert(toInsert).select()
       
       if (error) throw error
+
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        const customList = toInsert.map(item => ({
+          number: item.number,
+          movie_name: item.movie_name,
+          dialogue: item.dialogue,
+          image_url: item.image_url
+        }))
+        localStorage.setItem("custom_bollywood_mappings", JSON.stringify(customList))
+      }
+
       setMappings(inserted || [])
       setIsBulkOpen(false)
       toast.success("Imported successfully!")
@@ -176,6 +215,12 @@ export default function MappingEditorPage() {
       
       await supabase.from("bollywood_mappings").delete().eq("game_id", gameId)
       const { data } = await supabase.from("bollywood_mappings").insert(defaults).select()
+
+      // Reset localStorage custom mappings
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("custom_bollywood_mappings")
+      }
+
       setMappings(data || [])
       toast.success("Defaults loaded!")
     } catch {
