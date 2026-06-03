@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Trophy, Home, RotateCcw, Users, Hash, Loader2, Sparkles, Star } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { CLAIM_DISPLAY_INFO } from "@/lib/claim-validator"
 
 export default function ResultsPage() {
   const params = useParams()
@@ -108,8 +109,12 @@ export default function ResultsPage() {
                         </div>
                         <div>
                           <p className="font-black text-sm">{win.players?.display_name}</p>
-                          <Badge variant="outline" className="text-[9px] capitalize px-2">
-                            {win.claim_type.replace("_", " ")}
+                          <Badge variant="outline" className="text-[9px] px-2 flex items-center gap-1">
+                            {(() => {
+                              const uiType = (win.claim_data as any)?.type || win.claim_type
+                              const info = CLAIM_DISPLAY_INFO[uiType as keyof typeof CLAIM_DISPLAY_INFO]
+                              return info ? `${info.icon} ${info.label}` : uiType.replace(/_/g, " ")
+                            })()}
                           </Badge>
                         </div>
                       </div>

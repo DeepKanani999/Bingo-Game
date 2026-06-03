@@ -24,6 +24,7 @@ import {
   ChevronDown, ChevronUp, Link2,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { CLAIM_DISPLAY_INFO } from "@/lib/claim-validator"
 import { generateNumberPool, shuffleArray } from "@/lib/bingo-utils"
 import { getBollywoodItemByTitle } from "@/lib/bollywood-data"
 import { subscribeToHostEvents } from "@/lib/realtime"
@@ -337,51 +338,51 @@ export default function HostDashboardPage() {
   const theme = {
     number: {
       accent: "blue",
-      bgGradient: "from-blue-600/10 to-indigo-600/10",
-      border: "border-blue-500/20",
-      text: "text-blue-500",
-      glow: "shadow-blue-500/20 hover:shadow-blue-500/30",
-      badgeBg: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-      btnColor: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
-      gradientOrb: "bg-blue-500/10",
-      accentText: "text-blue-600 dark:text-blue-400",
-      bgAccent: "bg-blue-500",
+      bgGradient: "from-blue-55/50 to-indigo-55/50",
+      border: "border-slate-200/60",
+      text: "text-[#2563EB]",
+      glow: "shadow-sm",
+      badgeBg: "bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE]",
+      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
+      gradientOrb: "hidden",
+      accentText: "text-[#2563EB]",
+      bgAccent: "bg-[#2563EB]",
     },
     bollywood: {
       accent: "amber",
-      bgGradient: "from-amber-600/10 to-rose-600/10",
-      border: "border-amber-500/20",
-      text: "text-amber-500",
-      glow: "shadow-amber-500/20 hover:shadow-amber-500/30",
-      badgeBg: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-      btnColor: "bg-amber-600 hover:bg-amber-700 focus:ring-amber-500",
-      gradientOrb: "bg-amber-500/10",
-      accentText: "text-amber-600 dark:text-amber-400",
+      bgGradient: "from-amber-50/50 to-rose-50/50",
+      border: "border-slate-200/60",
+      text: "text-amber-600",
+      glow: "shadow-sm",
+      badgeBg: "bg-amber-50 text-amber-600 border border-amber-200",
+      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
+      gradientOrb: "hidden",
+      accentText: "text-amber-600",
       bgAccent: "bg-amber-500",
     },
     custom: {
       accent: "purple",
-      bgGradient: "from-purple-600/10 to-pink-600/10",
-      border: "border-purple-500/20",
-      text: "text-purple-500",
-      glow: "shadow-purple-500/20 hover:shadow-purple-500/30",
-      badgeBg: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-      btnColor: "bg-purple-600 hover:bg-purple-700 focus:ring-purple-500",
-      gradientOrb: "bg-purple-500/10",
-      accentText: "text-purple-600 dark:text-purple-400",
+      bgGradient: "from-purple-50/50 to-pink-50/50",
+      border: "border-slate-200/60",
+      text: "text-purple-600",
+      glow: "shadow-sm",
+      badgeBg: "bg-purple-50 text-purple-600 border border-purple-200",
+      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
+      gradientOrb: "hidden",
+      accentText: "text-purple-600",
       bgAccent: "bg-purple-500",
     },
   }[gameType] || {
     accent: "neutral",
-    bgGradient: "from-neutral-600/10 to-neutral-600/10",
-    border: "border-neutral-500/20",
-    text: "text-neutral-500",
-    glow: "shadow-neutral-500/20 hover:shadow-neutral-500/30",
-    badgeBg: "bg-neutral-500/10 text-neutral-500 border-neutral-500/20",
-    btnColor: "bg-primary hover:bg-primary/90 focus:ring-primary",
-    gradientOrb: "bg-primary/5",
-    accentText: "text-primary",
-    bgAccent: "bg-primary",
+    bgGradient: "bg-white",
+    border: "border-slate-200/60",
+    text: "text-slate-700",
+    glow: "shadow-sm",
+    badgeBg: "bg-slate-50 text-slate-700 border border-slate-200",
+    btnColor: "bg-slate-900 hover:bg-slate-800",
+    gradientOrb: "hidden",
+    accentText: "text-slate-900",
+    bgAccent: "bg-slate-900",
   }
 
   const copyInviteLink = () => {
@@ -393,13 +394,7 @@ export default function HostDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24 lg:pb-6 relative overflow-hidden">
-      {/* Background Decor Orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[120px] animate-pulse transition-colors duration-1000 ${theme.gradientOrb}`} />
-        <div className={`absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full blur-[150px] animate-pulse transition-colors duration-1000 ${theme.gradientOrb}`} style={{ animationDelay: "2s" }} />
-      </div>
-
+    <div className="min-h-screen bg-[#F8FAFC] pb-24 lg:pb-6 relative overflow-hidden">
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-8 space-y-8">
         {isLobby ? (
           // ==================== REDESIGNED LOBBY VIEW ====================
@@ -701,52 +696,52 @@ export default function HostDashboardPage() {
           // ==================== ORIGINAL ACTIVE/ENDED VIEW ====================
           <>
             {/* Header & Controls */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-card/40 backdrop-blur-md border border-border/60 rounded-2xl p-6 sm:p-8 shadow-sm animate-in fade-in duration-300">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white border border-slate-200/60 rounded-2xl p-6 sm:p-8 shadow-sm animate-in fade-in duration-300">
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={`px-2.5 py-1 font-bold tracking-wider text-xs uppercase border-current ${
+                  <Badge variant="outline" className={`px-2.5 py-1 font-bold tracking-wider text-xs uppercase rounded-full ${
                     gameData?.status === "active" 
-                      ? "bg-green-500/10 text-green-500 border-green-500/20" 
-                      : "bg-red-500/10 text-red-500 border-red-500/20"
+                      ? "bg-green-50 text-green-600 border border-green-200" 
+                      : "bg-red-50 text-red-600 border border-red-200"
                   }`}>
                     <span className={`w-2 h-2 rounded-full mr-1.5 ${gameData?.status === "active" ? "bg-green-500 animate-ping" : "bg-red-500"}`} />
                     {gameData?.status === "active" ? "Active Call Board" : "Game Ended"}
                   </Badge>
-                  <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold capitalize">
+                  <Badge variant="secondary" className="px-2.5 py-1 text-xs font-semibold capitalize bg-slate-100 text-slate-700 rounded-full">
                     {gameType} Mode
                   </Badge>
                 </div>
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-foreground">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-slate-900">
                   {gameData?.game_name}
                 </h1>
-                <p className="text-muted-foreground text-sm font-medium">
-                  Hosted by <span className="text-foreground font-semibold">{gameData?.host_name}</span>
+                <p className="text-slate-500 text-sm font-medium">
+                  Hosted by <span className="text-slate-900 font-semibold">{gameData?.host_name}</span>
                 </p>
               </div>
 
               {/* Game Code & Actions */}
               <div className="flex flex-col sm:flex-row items-stretch gap-4 lg:min-w-[400px]">
                 {/* Monospace Code Widget */}
-                <div className="flex-1 bg-card border border-border rounded-xl p-4 flex flex-col items-center justify-center text-center relative group hover:border-primary/40 transition-all duration-300">
-                  <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground mb-1">Game Code</p>
-                  <button onClick={copyGameCode} className="text-2xl font-black font-mono tracking-widest text-primary flex items-center gap-2 hover:scale-105 transition-transform">
+                <div className="flex-1 bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center text-center relative group hover:border-[#2563EB]/40 transition-all duration-300">
+                  <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Game Code</p>
+                  <button onClick={copyGameCode} className="text-2xl font-black font-mono tracking-widest text-[#2563EB] flex items-center gap-2 hover:scale-105 transition-transform">
                     {gameData?.game_code}
-                    <Copy className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <Copy className="w-4 h-4 text-slate-400 group-hover:text-[#2563EB] transition-colors" />
                   </button>
-                  <span className="text-[9px] text-muted-foreground mt-1 opacity-60">Click code to copy</span>
+                  <span className="text-[9px] text-slate-400 mt-1 opacity-60">Click code to copy</span>
                 </div>
 
                 <div className="flex flex-col justify-center gap-2 sm:w-48">
-                  <Button variant="outline" size="sm" onClick={() => router.push("/")} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2">
+                  <Button variant="outline" size="sm" onClick={() => router.push("/")} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl">
                     <RotateCcw className="w-3.5 h-3.5" />
                     Return to Lobby
                   </Button>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowResetDialog(true)} className="flex-1 text-xs font-bold py-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowResetDialog(true)} className="flex-1 text-xs font-bold py-2 border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl">
                       <RotateCcw className="w-3.5 h-3.5 mr-1" />
                       RESET
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => setShowEndDialog(true)} className="flex-1 text-xs font-bold py-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowEndDialog(true)} className="flex-1 text-xs font-bold py-2 border-red-200 text-red-650 hover:bg-red-55 hover:text-red-700 rounded-xl">
                       <LogOut className="w-3.5 h-3.5 mr-1" />
                       END
                     </Button>
@@ -760,18 +755,18 @@ export default function HostDashboardPage() {
               <div className="grid gap-6 lg:grid-cols-12 animate-in slide-in-from-bottom duration-500">
                 {/* Left: Caller */}
                 <div className="lg:col-span-4 space-y-4">
-                  <Card className={`border-2 ${theme.border} bg-card/60 backdrop-blur-md shadow-xl relative overflow-hidden transition-all duration-500`}>
+                  <Card className="border border-slate-200 bg-white shadow-sm rounded-2xl relative overflow-hidden transition-all duration-500">
                     {isPaused && (
-                      <div className="absolute inset-0 z-10 bg-background/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+                      <div className="absolute inset-0 z-10 bg-white/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
                         <div className="text-center">
-                          <Pause className="w-12 h-12 text-muted-foreground mx-auto mb-2 animate-bounce" />
-                          <p className="text-lg font-bold tracking-wider">PAUSED</p>
+                          <Pause className="w-12 h-12 text-slate-400 mx-auto mb-2 animate-bounce" />
+                          <p className="text-lg font-bold tracking-wider text-slate-800">PAUSED</p>
                         </div>
                       </div>
                     )}
                     <CardHeader className="text-center pb-2">
                       <div className="flex items-center justify-between mb-2">
-                        <Badge variant="outline" className={`text-[10px] font-bold uppercase tracking-wider ${theme.badgeBg}`}>
+                        <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#2563EB] border border-blue-200 px-2 py-0.5 rounded-full">
                           Current Call #{calledItems.length}
                         </Badge>
                         
@@ -785,8 +780,8 @@ export default function HostDashboardPage() {
                           }} 
                           className={`h-7 w-7 rounded-full transition-colors ${
                             voiceEnabled 
-                              ? "text-green-500 hover:text-green-600 hover:bg-green-500/10" 
-                              : "text-muted-foreground hover:bg-muted"
+                              ? "text-green-500 hover:text-green-600 hover:bg-green-50/15" 
+                              : "text-slate-400 hover:bg-slate-50 hover:text-slate-600"
                           }`}
                           title={voiceEnabled ? "Mute Voice Announcer" : "Unmute Voice Announcer"}
                         >
@@ -796,7 +791,7 @@ export default function HostDashboardPage() {
 
                       {gameData?.game_type === "bollywood" && currentReferenceImage && (
                         <div className="space-y-3 animate-in zoom-in-95 duration-500">
-                          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-black/10 aspect-video relative shadow-inner">
+                          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 aspect-video relative shadow-sm">
                             <img
                               src={currentReferenceImage}
                               alt={currentBollywoodMapping?.movie_name || "Current Bollywood clue"}
@@ -804,17 +799,17 @@ export default function HostDashboardPage() {
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                             <div className="absolute bottom-2 left-2 right-2 text-left">
-                              <span className="text-[10px] uppercase font-black tracking-widest text-white/60">Bollywood Clue</span>
+                              <span className="text-[10px] uppercase font-black tracking-widest text-white/80">Bollywood Clue</span>
                             </div>
                           </div>
-                          <div className="text-xl font-mono font-black text-primary">
+                          <div className="text-xl font-mono font-black text-[#2563EB]">
                             #{currentItem?.value || "-"}
                           </div>
-                          <div className="text-2xl sm:text-3xl font-black text-primary truncate">
+                          <div className="text-2xl sm:text-3xl font-black text-slate-800 truncate">
                             {currentBollywoodMapping?.movie_name || "Bollywood clue"}
                           </div>
                           {currentBollywoodMapping?.dialogue && (
-                            <p className="text-sm text-muted-foreground italic font-medium">"{currentBollywoodMapping.dialogue}"</p>
+                            <p className="text-sm text-slate-500 italic font-medium">"{currentBollywoodMapping.dialogue}"</p>
                           )}
                         </div>
                       )}
@@ -822,7 +817,7 @@ export default function HostDashboardPage() {
                       {/* Numeric Clue Display */}
                       {!(gameData?.game_type === "bollywood" && currentReferenceImage) && (
                         <div className="py-6 flex flex-col items-center justify-center">
-                          <span className={`text-8xl font-black tracking-tight ${theme.accentText} drop-shadow-md select-none animate-in zoom-in duration-300`}>
+                          <span className="text-8xl font-black tracking-tight text-slate-800 select-none animate-in zoom-in duration-300">
                             {currentItem?.value || "—"}
                           </span>
                         </div>
@@ -834,7 +829,7 @@ export default function HostDashboardPage() {
                         size="lg" 
                         onClick={handleCallNext} 
                         disabled={itemPool.length === 0 || isPaused}
-                        className={`w-full h-14 text-lg font-black text-white shadow-lg active:scale-95 transition-all duration-300 ${theme.btnColor} ${theme.glow}`}
+                        className="w-full h-14 text-lg font-black text-white bg-[#2563EB] hover:bg-[#1D4ED8] shadow-sm rounded-xl active:scale-95 transition-all duration-300"
                       >
                         <Play className="w-5 h-5 mr-2 fill-current" />CALL NEXT
                       </Button>
@@ -845,14 +840,14 @@ export default function HostDashboardPage() {
                           value={manualNumber} 
                           onChange={(e) => setManualNumber(e.target.value)}
                           placeholder="Manual #" 
-                          className="text-center font-mono font-bold text-base h-11" 
+                          className="text-center font-mono font-bold text-base h-11 border-slate-200 rounded-xl" 
                           onKeyDown={(e) => e.key === "Enter" && handleManualCall()} 
                         />
                         <Button 
                           variant="outline" 
                           onClick={handleManualCall} 
                           disabled={!manualNumber.trim()}
-                          className="h-11 px-4"
+                          className="h-11 px-4 border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl"
                         >
                           <Hash className="w-4 h-4" />
                         </Button>
@@ -860,8 +855,8 @@ export default function HostDashboardPage() {
 
                       {/* Auto-call toggle */}
                       {gameData?.auto_call && (
-                        <div className="flex items-center justify-between text-xs p-3 rounded-xl bg-muted/40 border border-border/40 transition-colors">
-                          <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <div className="flex items-center justify-between text-xs p-3 rounded-xl bg-slate-50 border border-slate-200/60 transition-colors">
+                          <span className="font-semibold text-slate-500 flex items-center gap-1.5">
                             <Clock className="w-3.5 h-3.5" />
                             Auto-Call Every {gameData.call_interval}s
                           </span>
@@ -870,14 +865,14 @@ export default function HostDashboardPage() {
                       )}
 
                       {/* Custom progress tracker */}
-                      <div className="space-y-2 pt-1 border-t border-border/40">
-                        <div className="flex justify-between text-xs font-semibold text-muted-foreground">
+                      <div className="space-y-2 pt-1 border-t border-slate-100">
+                        <div className="flex justify-between text-xs font-semibold text-slate-500">
                           <span>Called: {calledItems.length}</span>
                           <span>Remaining: {itemPool.length}</span>
                         </div>
-                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden border">
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200/50">
                           <div 
-                            className={`h-full ${theme.bgAccent} transition-all duration-500 ease-out`} 
+                            className="h-full bg-[#2563EB] transition-all duration-500 ease-out" 
                             style={{ width: `${(calledItems.length / (calledItems.length + itemPool.length)) * 100}%` }} 
                           />
                         </div>
@@ -886,10 +881,10 @@ export default function HostDashboardPage() {
                   </Card>
 
                   {/* Players Panel */}
-                  <Card className="border border-border/60 bg-card/60 backdrop-blur-md">
-                    <CardHeader className="py-3.5 border-b border-border/40">
-                      <CardTitle className="text-sm font-bold flex items-center gap-2">
-                        <Users className="w-4 h-4 text-muted-foreground" />
+                  <Card className="border border-slate-200 bg-white shadow-sm rounded-2xl">
+                    <CardHeader className="py-3.5 border-b border-slate-100">
+                      <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-800">
+                        <Users className="w-4 h-4 text-slate-400" />
                         Players ({players.length})
                       </CardTitle>
                     </CardHeader>
@@ -898,16 +893,16 @@ export default function HostDashboardPage() {
                         {players.map((p: any) => (
                           <div 
                             key={p.id} 
-                            className="flex items-center gap-2 p-1.5 pl-2 pr-1 rounded-lg border bg-background/50 hover:bg-muted/10 transition-colors text-xs font-medium max-w-[150px] truncate group"
+                            className="flex items-center gap-2 p-1.5 pl-2 pr-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50/50 transition-colors text-xs font-medium max-w-[150px] truncate group shadow-sm"
                           >
                             <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${getAvatarGradient(p.display_name)} flex items-center justify-center text-[9px] font-black text-white flex-shrink-0`}>
                               {p.display_name?.[0]?.toUpperCase()}
                             </div>
-                            <span className="truncate flex-1 text-muted-foreground group-hover:text-foreground transition-colors">{p.display_name}</span>
+                            <span className="truncate flex-1 text-slate-650 group-hover:text-slate-850 transition-colors">{p.display_name}</span>
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-5 w-5 hover:bg-muted text-muted-foreground hover:text-foreground" 
+                              className="h-5 w-5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded" 
                               onClick={() => {
                                 navigator.clipboard.writeText(`${window.location.origin}/play/${gameId}/${p.id}`)
                                 toast.success("Player link copied!")
@@ -939,7 +934,7 @@ export default function HostDashboardPage() {
                     </TabsList>
 
                     <TabsContent value="history">
-                      <Card className="min-h-[450px] shadow-inner border border-border/40 bg-card/30 backdrop-blur-sm">
+                      <Card className="min-h-[450px] border border-slate-200/60 bg-white rounded-2xl shadow-sm">
                         <CardContent className="pt-6">
                           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
                             {calledItems.slice().reverse().map((item) => {
@@ -949,12 +944,12 @@ export default function HostDashboardPage() {
                               
                               return (
                                 <div key={item.id}
-                                  className="group relative rounded-xl border bg-card hover:border-primary/50 transition-all aspect-video overflow-hidden shadow-sm animate-in zoom-in-95 duration-300">
+                                  className="group relative rounded-xl border border-slate-200 bg-white hover:border-[#2563EB]/40 hover:shadow-md transition-all aspect-video overflow-hidden shadow-sm animate-in zoom-in-95 duration-300">
                                   {mapping?.image_url ? (
                                     <img src={mapping.image_url} className="w-full h-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-500" />
                                   ) : (
-                                    <div className="w-full h-full bg-primary/5 flex items-center justify-center">
-                                      <span className={`text-4xl font-black opacity-10 ${theme.accentText}`}>{item.value}</span>
+                                    <div className="w-full h-full bg-slate-50 flex items-center justify-center">
+                                      <span className="text-4xl font-black text-slate-350">{item.value}</span>
                                     </div>
                                   )}
                                   
@@ -963,12 +958,12 @@ export default function HostDashboardPage() {
                                     {mapping && <p className="text-white/70 text-[9px] truncate">{mapping.movie_name}</p>}
                                   </div>
 
-                                  <span className={`text-[9px] font-black absolute top-2 left-2 w-5 h-5 rounded-full bg-white shadow-lg text-black flex items-center justify-center`}>
+                                  <span className="text-[9px] font-black absolute top-2 left-2 w-5 h-5 rounded-full bg-white shadow-sm text-slate-800 flex items-center justify-center">
                                     {item.callOrder}
                                   </span>
                                   
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-destructive" onClick={() => handleDeleteItem(item)}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:text-red-500 rounded-lg hover:bg-white/10" onClick={() => handleDeleteItem(item)}>
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
                                   </div>
@@ -976,12 +971,12 @@ export default function HostDashboardPage() {
                               )
                             })}
                             {calledItems.length === 0 && (
-                              <div className="col-span-full py-24 flex flex-col items-center justify-center text-center text-muted-foreground bg-muted/20 rounded-2xl border-2 border-dashed border-border/40 p-8 animate-in fade-in duration-300">
-                                <div className="w-16 h-16 rounded-full bg-muted/60 flex items-center justify-center mb-4 animate-bounce">
-                                  <Play className="w-8 h-8 text-muted-foreground/80" />
+                              <div className="col-span-full py-24 flex flex-col items-center justify-center text-center text-slate-500 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200 p-8 animate-in fade-in duration-300">
+                                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                                  <Play className="w-8 h-8 text-slate-400" />
                                 </div>
-                                <h3 className="text-lg font-bold mb-1">Board is empty</h3>
-                                <p className="text-sm text-muted-foreground max-w-sm">
+                                <h3 className="text-lg font-bold mb-1 text-slate-800">Board is empty</h3>
+                                <p className="text-sm text-slate-400 max-w-sm">
                                   Trigger your first number/clue by clicking the "CALL NEXT" button on the left console.
                                 </p>
                               </div>
@@ -992,15 +987,15 @@ export default function HostDashboardPage() {
                     </TabsContent>
 
                     <TabsContent value="claims">
-                      <Card className="min-h-[450px] border border-border/40 bg-card/30 backdrop-blur-sm">
+                      <Card className="min-h-[450px] border border-slate-200/60 bg-white rounded-2xl shadow-sm">
                         <CardContent className="pt-6 space-y-3">
                           {claims.length === 0 && (
-                            <div className="py-24 text-center text-muted-foreground flex flex-col items-center justify-center">
-                              <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4 opacity-70">
-                                <ShieldCheck className="w-8 h-8 text-muted-foreground" />
+                            <div className="py-24 text-center text-slate-500 flex flex-col items-center justify-center">
+                              <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 border border-slate-200">
+                                <ShieldCheck className="w-8 h-8 text-slate-400" />
                               </div>
-                              <h3 className="text-base font-bold mb-1">No claims submitted yet</h3>
-                              <p className="text-xs text-muted-foreground">When players claim lines (like Early Five, corners, full house), they will appear here.</p>
+                              <h3 className="text-base font-bold mb-1 text-slate-800">No claims submitted yet</h3>
+                              <p className="text-xs text-slate-400">When players claim lines (like Early Five, corners, full house), they will appear here.</p>
                             </div>
                           )}
                           
@@ -1010,28 +1005,34 @@ export default function HostDashboardPage() {
                             const isPending = claim.status === "pending"
                             
                             const statusStyles = isApproved 
-                              ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-300"
+                              ? "border-green-200 bg-green-50/30 text-green-700"
                               : isRejected
-                              ? "border-destructive/30 bg-destructive/5 text-destructive"
-                              : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300 animate-pulse"
+                              ? "border-red-200 bg-red-50/30 text-red-700"
+                              : "border-amber-200 bg-amber-50/30 text-amber-700 animate-pulse"
                               
                             return (
                               <div 
                                 key={claim.id} 
-                                className={`p-4 rounded-xl border transition-all duration-300 hover:shadow-md animate-in slide-in-from-right duration-500 ${statusStyles}`}
+                                className={`p-4 rounded-xl border transition-all duration-300 hover:shadow-sm animate-in slide-in-from-right duration-500 ${statusStyles}`}
                               >
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <p className="font-extrabold text-sm text-foreground">{claim.players?.display_name || "Player"}</p>
-                                    <p className="text-xs font-semibold capitalize opacity-80 mt-0.5">
-                                      {(claim.claim_data as any)?.type?.replace(/_/g, " ") || claim.claim_type.replace(/_/g, " ")} claim
+                                    <p className="font-extrabold text-sm text-slate-800">{claim.players?.display_name || "Player"}</p>
+                                    <p className="text-xs font-semibold opacity-80 mt-0.5 flex items-center gap-1.5">
+                                      <span>
+                                        {(() => {
+                                          const uiType = (claim.claim_data as any)?.type || claim.claim_type
+                                          const info = CLAIM_DISPLAY_INFO[uiType as keyof typeof CLAIM_DISPLAY_INFO]
+                                          return info ? `${info.icon} ${info.label}` : uiType.replace(/_/g, " ")
+                                        })()}
+                                      </span>
                                       {(claim.claim_data as any)?.index !== undefined ? ` (Line ${(claim.claim_data as any).index + 1})` : ""}
                                     </p>
                                   </div>
                                   <Badge 
-                                    className={`font-bold flex items-center gap-1 border-none shadow-none ${
+                                    className={`font-bold flex items-center gap-1 border-none shadow-none rounded-full ${
                                       isApproved ? "bg-green-600 text-white" :
-                                      isRejected ? "bg-destructive text-white" :
+                                      isRejected ? "bg-red-600 text-white" :
                                       "bg-amber-500 text-white"
                                     }`}
                                   >
@@ -1045,8 +1046,8 @@ export default function HostDashboardPage() {
                                   </Badge>
                                 </div>
                                 {claim.validation_reason && (
-                                  <p className="text-xs text-muted-foreground mt-2 bg-background/40 p-2 rounded border border-border/10">
-                                    <span className="font-bold">Reason: </span>
+                                  <p className="text-xs text-slate-400 mt-2 bg-slate-50/50 p-2 rounded border border-slate-100">
+                                    <span className="font-bold text-slate-600">Reason: </span>
                                     {claim.validation_reason}
                                   </p>
                                 )}

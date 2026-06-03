@@ -52,7 +52,7 @@ import {
   generateNumberItems,
   generateBollywoodItems
 } from "@/lib/ticket-generator"
-import { validateClaim, ClaimType } from "@/lib/claim-validator"
+import { validateClaim, ClaimType, CLAIM_DISPLAY_INFO } from "@/lib/claim-validator"
 import { subscribeToGame } from "@/lib/realtime"
 import { usePlayerStore } from "@/stores/playerStore"
 
@@ -438,9 +438,7 @@ export default function PlayerBoardPage() {
         return
       }
 
-      const { data: newClaim, error } = await supabase
-        .from("claims")
-        .insert({
+      const claimPayload: Record<string, any> = {
           game_id: gameId,
           player_id: playerId,
           claim_type: dbClaimType,
@@ -452,10 +450,27 @@ export default function PlayerBoardPage() {
           is_valid: true,
           validation_reason: result.reason,
           status: "approved"
-        })
+      }
+
+      let { data: newClaim, error } = await supabase
+        .from("claims")
+        .insert(claimPayload)
         .select()
         .single()
       
+      // Fallback: if claim_data column doesn't exist in DB, retry without it
+      if (error && error.message?.includes("claim_data")) {
+        console.warn("claim_data column not found, retrying without it. Please add 'claim_data jsonb' column to your claims table.")
+        const { claim_data, ...payloadWithout } = claimPayload
+        const retry = await supabase
+          .from("claims")
+          .insert(payloadWithout)
+          .select()
+          .single()
+        newClaim = retry.data
+        error = retry.error
+      }
+
       if (error) {
         console.error("Supabase Claim Error Details:", {
           message: error.message,
@@ -494,80 +509,80 @@ export default function PlayerBoardPage() {
   const theme = {
     number: {
       accent: "blue",
-      glow: "shadow-blue-500/20 shadow-lg hover:shadow-blue-500/30",
-      badgeBg: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-      btnColor: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
-      gradientOrb: "bg-blue-500/10",
-      accentText: "text-blue-600 dark:text-blue-400",
-      bgAccent: "bg-blue-500",
-      border: "border-blue-500/20",
-      bgGradient: "from-blue-600/10 to-indigo-600/10",
-      titleGradient: "from-blue-400 via-indigo-500 to-purple-600",
+      glow: "shadow-sm",
+      badgeBg: "bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE]",
+      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
+      gradientOrb: "hidden",
+      accentText: "text-[#2563EB]",
+      bgAccent: "bg-[#2563EB]",
+      border: "border-slate-200/60",
+      bgGradient: "bg-white",
+      titleGradient: "from-slate-800 to-slate-950",
     },
     bollywood: {
       accent: "amber",
-      glow: "shadow-amber-500/20 shadow-lg hover:shadow-amber-500/30",
-      badgeBg: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-      btnColor: "bg-amber-600 hover:bg-amber-700 focus:ring-amber-500",
-      gradientOrb: "bg-amber-500/10",
-      accentText: "text-amber-600 dark:text-amber-400",
+      glow: "shadow-sm",
+      badgeBg: "bg-amber-50 text-amber-600 border border-amber-200",
+      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
+      gradientOrb: "hidden",
+      accentText: "text-amber-600",
       bgAccent: "bg-amber-500",
-      border: "border-amber-500/20",
-      bgGradient: "from-amber-600/10 to-rose-600/10",
-      titleGradient: "from-amber-400 via-rose-500 to-red-600",
+      border: "border-slate-200/60",
+      bgGradient: "bg-white",
+      titleGradient: "from-slate-800 to-slate-950",
     },
     custom: {
       accent: "purple",
-      glow: "shadow-purple-500/20 shadow-lg hover:shadow-purple-500/30",
-      badgeBg: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-      btnColor: "bg-purple-600 hover:bg-purple-700 focus:ring-purple-500",
-      gradientOrb: "bg-purple-500/10",
-      accentText: "text-purple-600 dark:text-purple-400",
+      glow: "shadow-sm",
+      badgeBg: "bg-purple-50 text-purple-600 border border-purple-200",
+      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
+      gradientOrb: "hidden",
+      accentText: "text-purple-600",
       bgAccent: "bg-purple-500",
-      border: "border-purple-500/20",
-      bgGradient: "from-purple-600/10 to-pink-600/10",
-      titleGradient: "from-purple-400 via-pink-500 to-rose-600",
+      border: "border-slate-200/60",
+      bgGradient: "bg-white",
+      titleGradient: "from-slate-800 to-slate-950",
     },
   }[gameType] || {
     accent: "neutral",
-    glow: "shadow-neutral-500/20 shadow-lg",
-    badgeBg: "bg-neutral-500/10 text-neutral-500 border-neutral-500/20",
-    btnColor: "bg-primary hover:bg-primary/90 focus:ring-primary",
-    gradientOrb: "bg-primary/5",
-    accentText: "text-primary",
-    bgAccent: "bg-primary",
-    border: "border-neutral-500/20",
-    bgGradient: "from-primary/5 to-secondary/5",
-    titleGradient: "from-primary to-secondary",
+    glow: "shadow-sm",
+    badgeBg: "bg-slate-50 text-slate-700 border border-slate-200",
+    btnColor: "bg-slate-900 hover:bg-slate-800",
+    gradientOrb: "hidden",
+    accentText: "text-slate-900",
+    bgAccent: "bg-slate-900",
+    border: "border-slate-200/60",
+    bgGradient: "bg-white",
+    titleGradient: "from-slate-800 to-slate-950",
   }
 
   return (
-    <div className="min-h-screen bg-background pb-32">
-      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b px-4 py-3">
+    <div className="min-h-screen bg-[#F8FAFC] pb-32">
+      <div className="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-slate-200/60 px-4 py-3">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push("/")} className="text-muted-foreground">
+            <button onClick={() => router.push("/")} className="text-slate-450 hover:text-slate-650 transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="flex flex-col">
-              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">BINGO LIVE</span>
-              <h1 className="font-extrabold text-sm">{gameData?.game_name}</h1>
+              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">BINGO LIVE</span>
+              <h1 className="font-extrabold text-sm text-slate-800">{gameData?.game_name}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setVoiceEnabled(!voiceEnabled)}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:bg-slate-50" onClick={() => setVoiceEnabled(!voiceEnabled)}>
               {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </Button>
-            <div className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
-              <Radio className="w-3 h-3 text-primary animate-pulse" />
-              <span className="text-[10px] font-black text-primary">LIVE</span>
+            <div className="flex items-center gap-1 bg-[#EFF6FF] px-2 py-1 rounded-full border border-[#DBEAFE]">
+              <Radio className="w-3 h-3 text-[#2563EB] animate-pulse" />
+              <span className="text-[10px] font-black text-[#2563EB]">LIVE</span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-6 space-y-6">
-        <Card className="border-2 border-primary/30 bg-gradient-to-br from-primary/10 via-background to-secondary/10 shadow-lg relative overflow-hidden">
+        <Card className="border border-slate-200 bg-white shadow-sm rounded-2xl overflow-hidden">
           <CardContent className="p-0 text-center">
             {gameData.game_type === "bollywood" && lastCalledMapping?.image_url ? (
               <div 
@@ -579,29 +594,29 @@ export default function PlayerBoardPage() {
                   alt="Last Called Movie"
                   className="w-full h-full object-cover animate-in fade-in zoom-in duration-500"
                 />
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                   <span className="text-white font-bold">Click to Zoom</span>
                 </div>
               </div>
             ) : (
               <div className="p-6">
-                <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-muted-foreground mb-2">Last Called</p>
-                <div className="text-6xl font-black text-primary animate-in zoom-in duration-500">
+                <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-slate-400 mb-2">Last Called</p>
+                <div className="text-6xl font-black text-[#2563EB] animate-in zoom-in duration-500">
                   {lastCalled?.item_id || "—"}
                 </div>
               </div>
             )}
-            <div className="mt-4 flex justify-between items-center text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg">
+            <div className="mt-4 flex justify-between items-center text-xs text-slate-550 bg-slate-50 p-3.5 border-t border-slate-100 rounded-b-2xl">
               <div className="flex items-center gap-1">
-                <History className="w-3 h-3" />
+                <History className="w-3 h-3 text-slate-400" />
                 <span>Call #{calledHistory.length}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span>Progress</span>
-                <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary" style={{ width: `${progressPercent}%` }} />
+                <div className="w-16 h-1 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#2563EB]" style={{ width: `${progressPercent}%` }} />
                 </div>
-                <span className="font-bold text-primary">{progressPercent}%</span>
+                <span className="font-bold text-[#2563EB]">{progressPercent}%</span>
               </div>
             </div>
           </CardContent>
@@ -628,28 +643,27 @@ export default function PlayerBoardPage() {
                 disabled={isFailed || isMarked}
                 className={`
                   aspect-square rounded-lg sm:rounded-xl border-2 transition-all duration-300 relative flex flex-col items-center justify-center overflow-hidden
-                  ${cell.isFree ? "border-yellow-500 bg-yellow-500/10" : ""}
-                  ${!cell.isFree && isMarked ? "border-green-500 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.3)] scale-95" : ""}
-                  ${!cell.isFree && isFailed ? "border-destructive bg-destructive/10 opacity-50 cursor-not-allowed grayscale" : ""}
-                  ${!cell.isFree && !isMarked && !isFailed ? "border-border/50 bg-muted/10 hover:border-primary/50" : ""}
-                  ${!isBollywood && !isMarked && isCalled ? "border-primary/50 animate-pulse shadow-lg" : ""}
+                  ${cell.isFree ? "border-amber-500 bg-amber-50 text-amber-700" : ""}
+                  ${!cell.isFree && isMarked ? "border-green-500 bg-green-50/40 text-green-700 font-bold scale-95 shadow-sm shadow-green-100" : ""}
+                  ${!cell.isFree && isFailed ? "border-red-200 bg-red-50/30 text-red-700 opacity-55 cursor-not-allowed" : ""}
+                  ${!cell.isFree && !isMarked && !isFailed ? (isCalled ? "border-[#2563EB] bg-[#EFF6FF] text-[#2563EB] animate-pulse shadow-sm" : "border-slate-200 bg-white hover:border-[#2563EB]/40 hover:shadow-sm text-slate-800") : ""}
                 `}
               >
                 {cell.isFree ? (
-                  <Sparkles className="w-6 h-6 text-yellow-500 animate-pulse" />
+                  <Sparkles className="w-6 h-6 text-amber-500 animate-pulse" />
                 ) : (
                   <>
                     {isBollywood ? (
                       <div className="flex h-full w-full flex-col items-center justify-center px-2 py-2 text-center">
-                        <span className={`text-[10px] sm:text-xs font-black tracking-wide ${isMarked ? "text-green-600" : isFailed ? "text-destructive" : "text-primary/70"}`}>
+                        <span className={`text-[10px] sm:text-xs font-black tracking-wide ${isMarked ? "text-green-600" : isFailed ? "text-red-500" : isCalled ? "text-[#2563EB]" : "text-slate-400"}`}>
                           #{cell.item.value}
                         </span>
-                        <span className={`mt-1 line-clamp-2 text-xs sm:text-sm font-bold leading-tight ${isMarked ? "text-green-700" : isFailed ? "text-destructive" : "text-foreground"}`}>
+                        <span className={`mt-1 line-clamp-2 text-xs sm:text-sm font-bold leading-tight ${isMarked ? "text-green-700" : isFailed ? "text-red-650" : "text-slate-800"}`}>
                           {cell.item.movieName || cell.item.value}
                         </span>
                       </div>
                     ) : (
-                      <span className={`text-base sm:text-2xl font-black ${isMarked ? "text-primary" : "text-foreground"}`}>
+                      <span className={`text-base sm:text-2xl font-black ${isMarked ? "text-green-700" : isFailed ? "text-red-650" : isCalled ? "text-[#2563EB]" : "text-slate-800"}`}>
                         {cell.item.value}
                       </span>
                     )}
@@ -661,7 +675,7 @@ export default function PlayerBoardPage() {
                     )}
                     {isFailed && (
                       <div className="absolute top-1 right-1">
-                        <X className="w-3 h-3 text-destructive" />
+                        <X className="w-3 h-3 text-red-500" />
                       </div>
                     )}
                   </>
@@ -671,22 +685,22 @@ export default function PlayerBoardPage() {
           })}
         </div>
 
-        <div className="flex justify-between items-center text-xs text-muted-foreground px-1">
+        <div className="flex justify-between items-center text-xs text-slate-450 px-1">
           <div className="flex items-center gap-2">
-            <Info className="w-3 h-3" />
+            <Info className="w-3 h-3 text-slate-400" />
             <span>{gameData.game_type === "bollywood" ? "Tap a movie card once its number is called to mark it." : "Tap a number once it's called to mark it."}</span>
           </div>
-          <Badge variant="outline" className="text-[9px]">
+          <Badge variant="outline" className="text-[9px] rounded bg-slate-100 text-slate-700 border-slate-200">
             {gameData.ticket_size} GRID
           </Badge>
         </div>
       </div>
 
-      <div className={`fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background/90 to-transparent z-40 transition-all duration-500 ${isGameOver ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}>
+      <div className={`fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC]/95 to-transparent z-40 transition-all duration-500 ${isGameOver ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}>
         <div className="max-w-xl mx-auto flex gap-3">
           <Button 
             size="lg" 
-            className="flex-1 h-16 rounded-2xl text-lg font-black shadow-xl shadow-primary/20 active:scale-95 transition-transform bg-primary"
+            className="flex-1 h-16 rounded-2xl text-lg font-black shadow-sm bg-[#2563EB] hover:bg-[#1D4ED8] text-white active:scale-95 transition-transform"
             onClick={() => setShowClaimDialog(true)}
           >
             <Trophy className="w-6 h-6 mr-2" />
@@ -695,7 +709,7 @@ export default function PlayerBoardPage() {
           <Button 
             size="lg" 
             variant="outline" 
-            className="h-16 w-16 rounded-2xl border-2"
+            className="h-16 w-16 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
             onClick={() => {
               const url = window.location.href
               navigator.clipboard.writeText(url)
@@ -721,35 +735,17 @@ export default function PlayerBoardPage() {
 
           <div className="grid grid-cols-2 gap-3 py-6">
             {(() => {
-              const types: { type: ClaimType; label: string; icon: any }[] = []
-              
-              if (gameData.ticket_size === "3x9") {
-                types.push(
-                  { type: "top_row", label: "Top Line", icon: History },
-                  { type: "middle_row", label: "Middle Line", icon: Radio },
-                  { type: "bottom_row", label: "Bottom Line", icon: History },
-                  { type: "early_five", label: "Early 5", icon: Zap },
-                  { type: "corners", label: "Four Corners", icon: Sparkles },
-                  { type: "full_house", label: "Full House", icon: Trophy }
-                )
-              } else if (gameData.ticket_size === "5x5") {
-                types.push(
-                  { type: "row", label: "Any Row", icon: History },
-                  { type: "column", label: "Any Column", icon: Radio },
-                  { type: "diagonal", label: "Diagonal", icon: Sparkles },
-                  { type: "early_five", label: "Early 5", icon: Zap },
-                  { type: "corners", label: "Four Corners", icon: Sparkles },
-                  { type: "full_house", label: "Full House", icon: Trophy }
-                )
-              } else {
-                types.push(
-                  { type: "row", label: "Row", icon: History },
-                  { type: "early_five", label: "Early 5", icon: Zap },
-                  { type: "full_house", label: "Full House", icon: Trophy }
-                )
-              }
+              const types: ClaimType[] = [
+                "early_five",
+                "top_row",
+                "middle_row",
+                "bottom_row",
+                "corners",
+                "full_house"
+              ]
 
-              return types.map(({ type, label, icon: Icon }) => {
+              return types.map((type) => {
+                const info = CLAIM_DISPLAY_INFO[type]
                 const isClaimed = playerClaims.some(c => 
                   (c.claim_type === type || (c.claim_data as any)?.type === type) && 
                   c.status === "approved"
@@ -766,8 +762,8 @@ export default function PlayerBoardPage() {
                       ${isClaimed ? "opacity-50 grayscale cursor-not-allowed bg-muted/20" : ""}
                     `}
                   >
-                    <Icon className={`w-5 h-5 ${selectedClaimType === type ? "text-primary" : "text-muted-foreground"}`} />
-                    <span className="font-bold text-sm capitalize">{label}</span>
+                    <span className="text-2xl">{info.icon}</span>
+                    <span className="font-bold text-sm">{info.label}</span>
                     {isClaimed && (
                       <div className="absolute top-1 right-1">
                         <CheckCircle2 className="w-3 h-3 text-green-500" />
@@ -799,31 +795,24 @@ export default function PlayerBoardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Game Over Results Overlay - Redesigned */}
       {isGameOver && (
-        <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-500">
-          {/* Background Decor Orbs */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-            <div className={`absolute -top-40 -right-40 w-96 h-96 rounded-full blur-[120px] animate-pulse transition-colors duration-1000 ${theme.gradientOrb}`} />
-            <div className={`absolute -bottom-40 -left-40 w-[500px] h-[500px] rounded-full blur-[150px] animate-pulse transition-colors duration-1000 ${theme.gradientOrb}`} style={{ animationDelay: "2s" }} />
-          </div>
-
+        <div className="fixed inset-0 z-[200] bg-[#F8FAFC]/95 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-500">
           <div className="w-full max-w-4xl space-y-8 text-center relative z-10 py-8 scroll-py-8">
             {/* Header Hero */}
             <div className="space-y-4">
-              <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto relative shadow-xl shadow-yellow-500/10 animate-pulse">
-                <Trophy className="w-10 h-10 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.2)]" />
+              <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center mx-auto relative shadow-md animate-pulse">
+                <Trophy className="w-10 h-10 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)]" />
                 <div className="absolute -inset-1.5 rounded-2xl border-2 border-yellow-500/30 animate-ping opacity-20" />
               </div>
               <div className="space-y-1">
-                <h1 className={`text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter italic uppercase bg-gradient-to-r ${theme.titleGradient} bg-clip-text text-transparent`}>
+                <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter italic uppercase text-slate-800">
                   GAME OVER!
                 </h1>
-                <p className="text-muted-foreground text-xs uppercase font-extrabold tracking-widest">
+                <p className="text-slate-400 text-xs uppercase font-extrabold tracking-widest">
                   Performance Analysis Complete
                 </p>
-                <p className="text-xs font-bold text-muted-foreground/80 mt-1">
-                  Final results for <span className="text-foreground font-black">{gameData?.game_name}</span>
+                <p className="text-xs font-bold text-slate-500 mt-1">
+                  Final results for <span className="text-slate-900 font-black">{gameData?.game_name}</span>
                 </p>
               </div>
             </div>
@@ -832,55 +821,55 @@ export default function PlayerBoardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
               {/* Left Column: Stats & Actions */}
               <div className="space-y-6">
-                <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground/80 px-1">
+                <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">
                   Your Performance
                 </h2>
                 
                 {/* Personal scorecard metrics */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Card className="bg-card/40 backdrop-blur-md border border-border/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
+                  <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
                     <CardContent className="pt-6 pb-6 text-center">
-                      <p className={`text-4xl sm:text-5xl font-black bg-gradient-to-br ${theme.titleGradient} bg-clip-text text-transparent`}>
+                      <p className="text-4xl sm:text-5xl font-black text-[#2563EB]">
                         {markedIds.size}
                       </p>
-                      <p className="text-xs font-black text-foreground mt-2 uppercase tracking-wide">Points</p>
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-0.5">Matched Cells</p>
+                      <p className="text-xs font-black text-slate-800 mt-2 uppercase tracking-wide">Points</p>
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-0.5">Matched Cells</p>
                     </CardContent>
                   </Card>
                   
-                  <Card className="bg-card/40 backdrop-blur-md border border-border/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
+                  <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
                     <CardContent className="pt-6 pb-6 text-center">
-                      <p className={`text-4xl sm:text-5xl font-black bg-gradient-to-br ${theme.titleGradient} bg-clip-text text-transparent`}>
+                      <p className="text-4xl sm:text-5xl font-black text-[#2563EB]">
                         {checkBingo(board, markedIds, gameData?.ticket_size).length}
                       </p>
-                      <p className="text-xs font-black text-foreground mt-2 uppercase tracking-wide">Lines</p>
-                      <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-0.5">Completed Lines</p>
+                      <p className="text-xs font-black text-slate-800 mt-2 uppercase tracking-wide">Lines</p>
+                      <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-0.5">Completed Lines</p>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* Match Accuracy Tracker Card */}
-                <Card className="bg-card/40 backdrop-blur-md border border-border/60 shadow-sm rounded-2xl relative overflow-hidden transition-transform duration-300 hover:scale-[1.02]">
+                <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl relative overflow-hidden transition-transform duration-300 hover:scale-[1.02]">
                   <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                    <Sparkles className="w-16 h-16 text-foreground" />
+                    <Sparkles className="w-16 h-16 text-[#2563EB]" />
                   </div>
                   <CardContent className="p-5">
-                    <div className="flex justify-between items-center text-xs font-bold text-foreground mb-2">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 mb-2">
                       <span className="uppercase tracking-wider flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
+                        <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
                         Match Rate
                       </span>
-                      <span className={`font-black text-sm ${theme.accentText}`}>
+                      <span className="font-black text-sm text-[#2563EB]">
                         {Math.round((markedIds.size / Math.max(calledValues.size, 1)) * 100)}% Accuracy
                       </span>
                     </div>
-                    <div className="w-full bg-muted/60 dark:bg-muted/30 rounded-full h-2.5 overflow-hidden border border-border/50 mb-2">
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/50 mb-2">
                       <div 
-                        className={`h-full bg-gradient-to-r ${theme.titleGradient} transition-all duration-1000 ease-out`} 
+                        className="h-full bg-[#2563EB] transition-all duration-1000 ease-out" 
                         style={{ width: `${Math.min(100, (markedIds.size / Math.max(calledValues.size, 1)) * 100)}%` }} 
                       />
                     </div>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
                       Percentage of called numbers that you correctly marked on your board.
                     </p>
                   </CardContent>
@@ -889,12 +878,12 @@ export default function PlayerBoardPage() {
                 {/* Return Actions */}
                 <div className="pt-2 space-y-4">
                   <Button 
-                    className={`w-full h-14 rounded-2xl font-black text-lg text-white shadow-xl hover:scale-[1.02] active:scale-95 transition-all duration-300 ${theme.btnColor} ${theme.glow}`}
+                    className="w-full h-14 rounded-2xl font-black text-lg text-white bg-[#2563EB] hover:bg-[#1D4ED8] shadow-sm hover:scale-[1.02] active:scale-95 transition-all duration-300"
                     onClick={() => router.push("/")}
                   >
                     Return to Lobby
                   </Button>
-                  <p className="text-[10px] font-bold text-muted-foreground/45 uppercase tracking-[0.2em] text-center">
+                  <p className="text-[10px] font-bold text-slate-350 uppercase tracking-[0.2em] text-center">
                     Bingo Visual Recognition Engine v1.0
                   </p>
                 </div>
@@ -903,18 +892,18 @@ export default function PlayerBoardPage() {
               {/* Right Column: Champions Board / Winner Display */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground/80 flex items-center gap-2">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                     <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 animate-pulse" />
                     Champions Board
                   </h2>
-                  <Badge variant="outline" className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wide border-current ${theme.badgeBg}`}>
+                  <Badge variant="outline" className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wide bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE] rounded-full">
                     Verified Winners
                   </Badge>
                 </div>
 
-                <Card className="border border-border/80 bg-card/60 backdrop-blur-md shadow-lg overflow-hidden rounded-2xl flex flex-col min-h-[280px]">
-                  <CardHeader className="py-4 px-5 border-b border-border/40 bg-muted/20">
-                    <CardTitle className="text-xs font-black text-muted-foreground flex items-center gap-1.5">
+                <Card className="border border-slate-200/60 bg-white shadow-sm overflow-hidden rounded-2xl flex flex-col min-h-[280px]">
+                  <CardHeader className="py-4 px-5 border-b border-slate-100 bg-slate-50/50">
+                    <CardTitle className="text-xs font-black text-slate-500 flex items-center gap-1.5">
                       <Crown className="w-3.5 h-3.5 text-yellow-500" />
                       LATEST WINNERS
                     </CardTitle>
@@ -922,7 +911,7 @@ export default function PlayerBoardPage() {
                   </CardHeader>
                   <CardContent className="p-0 flex-1 overflow-y-auto max-h-[280px]">
                     {winners.length > 0 ? (
-                      <div className="divide-y divide-border/30">
+                      <div className="divide-y divide-slate-100">
                         {winners.map((win, idx) => {
                           const isCurrentUser = win.player_id === playerId
                           const rankColor = idx === 0 
@@ -931,13 +920,13 @@ export default function PlayerBoardPage() {
                             ? "bg-slate-300 text-slate-800 border-slate-200" 
                             : idx === 2 
                             ? "bg-amber-600 text-white border-amber-500" 
-                            : "bg-muted text-muted-foreground border-border"
+                            : "bg-slate-100 text-slate-500 border-slate-200"
 
                           return (
                             <div 
                               key={win.id} 
-                              className={`flex items-center justify-between p-3.5 hover:bg-muted/10 transition-colors ${
-                                isCurrentUser ? "bg-primary/5 border-l-4 border-l-yellow-500" : ""
+                              className={`flex items-center justify-between p-3.5 hover:bg-slate-50/50 transition-colors ${
+                                isCurrentUser ? "bg-blue-50/40 border-l-4 border-l-blue-500" : ""
                               }`}
                             >
                               <div className="flex items-center gap-3.5 min-w-0">
@@ -946,21 +935,21 @@ export default function PlayerBoardPage() {
                                 </div>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <p className="font-extrabold text-sm text-foreground truncate max-w-[140px] sm:max-w-[200px]">
+                                    <p className="font-extrabold text-sm text-slate-800 truncate max-w-[140px] sm:max-w-[200px]">
                                       {win.players?.display_name || "Unknown Player"}
                                     </p>
                                     {isCurrentUser && (
-                                      <Badge className="bg-yellow-500 hover:bg-yellow-600 text-[8px] font-black tracking-wider px-1.5 py-0 h-4 uppercase">
+                                      <Badge className="bg-blue-50 text-[#2563EB] border border-blue-200 hover:bg-blue-100 text-[8px] font-black tracking-wider px-1.5 py-0 h-4 uppercase">
                                         YOU
                                       </Badge>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-1.5 mt-1">
-                                    <Badge variant="secondary" className="text-[9px] uppercase px-1.5 py-0 font-bold mt-0.5">
+                                    <Badge variant="secondary" className="text-[9px] uppercase px-1.5 py-0 font-bold mt-0.5 bg-slate-100 text-slate-700">
                                       {win.claim_type.replace(/_/g, " ")}
                                     </Badge>
                                     {win.claim_data?.type && win.claim_data.type !== win.claim_type && (
-                                      <span className="text-[9px] text-muted-foreground/80 font-medium">
+                                      <span className="text-[9px] text-slate-400 font-medium">
                                         {win.claim_data.type.replace(/_/g, " ")}
                                       </span>
                                     )}
@@ -968,7 +957,7 @@ export default function PlayerBoardPage() {
                                 </div>
                               </div>
                               <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                <span className="text-[10px] text-muted-foreground font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/10">
+                                <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
                                   {new Date(win.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                 </span>
                               </div>
@@ -978,12 +967,12 @@ export default function PlayerBoardPage() {
                       </div>
                     ) : (
                       <div className="p-12 flex flex-col items-center justify-center text-center space-y-3 h-full">
-                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                        <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
                           <Crown className="w-6 h-6 opacity-30" />
                         </div>
                         <div className="space-y-1">
-                          <p className="text-xs font-extrabold text-foreground uppercase tracking-wider">No Claims Verified Yet</p>
-                          <p className="text-[10px] text-muted-foreground max-w-[240px]">
+                          <p className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">No Claims Verified Yet</p>
+                          <p className="text-[10px] text-slate-400 max-w-[240px]">
                             Waiting for players to submit claims or for host to verify them.
                           </p>
                         </div>

@@ -168,3 +168,16 @@ export function isDuplicateClaim(
   )
 }
 
+export const CLAIM_DISPLAY_INFO: Record<ClaimType, { label: string; icon: string }> = {
+  early_five: { label: "Early Five", icon: "🏆" },
+  top_row: { label: "Top Line", icon: "⬆️" },
+  middle_row: { label: "Middle Line", icon: "➡️" },
+  bottom_row: { label: "Bottom Line", icon: "⬇️" },
+  corners: { label: "Four Corners", icon: "⭐" },
+  full_house: { label: "Full House", icon: "🏅" },
+  row: { label: "Row", icon: "➡️" },
+  column: { label: "Column", icon: "⬇️" },
+  diagonal: { label: "Diagonal", icon: "⭐" },
+}
+
+
