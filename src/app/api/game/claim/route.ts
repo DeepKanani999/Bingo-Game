@@ -79,7 +79,6 @@ export async function POST(request: Request) {
         game_id: gameId,
         player_id: playerId,
         claim_type: typedClaimType,
-        claim_data: { index: resolvedIndex, type: typedClaimType },
         is_valid: false,
         validation_reason: validationResult.reason,
         status: "rejected"
@@ -105,15 +104,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Database error checking claims" }, { status: 500 })
     }
 
-    // For row, column, or diagonal, we must check the specific index
-    const hasIndex = resolvedIndex !== undefined
-    const isAlreadyClaimed = existingClaims && existingClaims.some(c => {
-      if (hasIndex) {
-        const indexInClaim = (c.claim_data as any)?.index
-        return indexInClaim !== undefined && Number(indexInClaim) === resolvedIndex
-      }
-      return true
-    })
+    const isAlreadyClaimed = existingClaims && existingClaims.length > 0
 
     if (isAlreadyClaimed) {
       const reason = "This prize has already been claimed by another player!"
@@ -122,7 +113,6 @@ export async function POST(request: Request) {
         game_id: gameId,
         player_id: playerId,
         claim_type: typedClaimType,
-        claim_data: { index: resolvedIndex, type: typedClaimType },
         is_valid: false,
         validation_reason: reason,
         status: "rejected"
@@ -142,11 +132,6 @@ export async function POST(request: Request) {
         game_id: gameId,
         player_id: playerId,
         claim_type: typedClaimType,
-        claim_data: { 
-          index: resolvedIndex, 
-          type: typedClaimType, 
-          cells: validationResult.claimedCells.map(c => c.item.id) 
-        },
         is_valid: true,
         validation_reason: validationResult.reason,
         status: "approved"

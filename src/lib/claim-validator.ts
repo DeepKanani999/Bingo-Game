@@ -163,7 +163,6 @@ export function isDuplicateClaim(
     (c) =>
       c.player_id === playerId &&
       c.claim_type === claimType &&
-      (claimIndex === undefined || (c.claim_data as any)?.index === claimIndex) &&
       c.status === "approved"
   )
 }
