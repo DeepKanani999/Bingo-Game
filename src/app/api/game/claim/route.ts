@@ -92,25 +92,32 @@ export async function POST(request: Request) {
       })
     }
 
-    // 6. Check lock and insert into prize_locks to avoid race conditions
-    // Using a try-catch/insert database check for unique constraints
-    const { error: lockError } = await supabaseAdmin
-      .from("prize_locks")
-      .insert({
-        game_id: gameId,
-        claim_type: typedClaimType,
-        claim_index: resolvedIndex,
-        winner_player_id: playerId
-      })
+    // 6. Check if this prize/pattern is already claimed
+    const { data: existingClaims, error: checkError } = await supabaseAdmin
+      .from("claims")
+      .select("*")
+      .eq("game_id", gameId)
+      .eq("claim_type", typedClaimType)
+      .eq("status", "approved")
 
-    if (lockError) {
-      // 23505 is PostgreSQL unique_violation code
-      const isRaceCondition = lockError.code === "23505" || lockError.message?.includes("duplicate key")
-      const reason = isRaceCondition 
-        ? "This prize has already been claimed by another player!" 
-        : `Claim locking failed: ${lockError.message}`
+    if (checkError) {
+      console.error("Failed to check existing claims:", checkError)
+      return NextResponse.json({ error: "Database error checking claims" }, { status: 500 })
+    }
 
-      // Record rejected claim due to race condition or lock failure
+    // For row, column, or diagonal, we must check the specific index
+    const hasIndex = resolvedIndex !== undefined
+    const isAlreadyClaimed = existingClaims && existingClaims.some(c => {
+      if (hasIndex) {
+        const indexInClaim = (c.claim_data as any)?.index
+        return indexInClaim !== undefined && Number(indexInClaim) === resolvedIndex
+      }
+      return true
+    })
+
+    if (isAlreadyClaimed) {
+      const reason = "This prize has already been claimed by another player!"
+      // Record rejected claim
       await supabaseAdmin.from("claims").insert({
         game_id: gameId,
         player_id: playerId,
@@ -149,14 +156,6 @@ export async function POST(request: Request) {
 
     if (claimInsertError) {
       console.error("Approved claim insert error:", claimInsertError)
-      // Rollback lock
-      await supabaseAdmin
-        .from("prize_locks")
-        .delete()
-        .eq("game_id", gameId)
-        .eq("claim_type", typedClaimType)
-        .eq("claim_index", resolvedIndex)
-
       return NextResponse.json({ error: "Failed to submit approved claim" }, { status: 500 })
     }
 

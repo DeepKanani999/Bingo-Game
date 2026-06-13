@@ -85,9 +85,6 @@ export async function POST(request: Request) {
         // Delete claims
         await supabaseAdmin.from("claims").delete().eq("game_id", gameId)
 
-        // Delete prize locks
-        await supabaseAdmin.from("prize_locks").delete().eq("game_id", gameId)
-
         updates.status = "lobby"
         updates.paused = false
         updates.next_call_at = null

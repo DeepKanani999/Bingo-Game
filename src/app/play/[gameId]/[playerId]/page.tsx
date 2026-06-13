@@ -103,6 +103,7 @@ export default function PlayerBoardPage() {
   const mappingsRef = useRef<any[]>([])
   const hasLoadedRef = useRef(false)
   const gameTypeRef = useRef<string>("number")
+  const celebratedClaimIdsRef = useRef<Set<string>>(new Set())
   
   // Store actions
   const setPlayerIdentity = usePlayerStore((s) => s.setPlayerIdentity)
@@ -147,10 +148,66 @@ export default function PlayerBoardPage() {
     }
   }, [gameId])
 
+  const handleApprovedClaim = useCallback((claim: any) => {
+    if (!claim || claim.status !== "approved") return
+    if (celebratedClaimIdsRef.current.has(claim.id)) return
+    celebratedClaimIdsRef.current.add(claim.id)
+
+    fetchWinners()
+
+    // Fetch player's display name and game prizes to celebrate
+    Promise.all([
+      supabase.from("players").select("display_name").eq("id", claim.player_id).single(),
+      supabase.from("games").select("prizes").eq("id", gameId).single()
+    ]).then(([{ data: playerData }, { data: gameData }]) => {
+      const name = playerData?.display_name || "Someone"
+      const info = CLAIM_DISPLAY_INFO[claim.claim_type as keyof typeof CLAIM_DISPLAY_INFO]
+      const label = info ? `${info.icon} ${info.label}` : claim.claim_type.replace(/_/g, " ")
+      
+      // Resolve prize
+      const prizesObj = (gameData?.prizes as any) || {}
+      const prize = prizesObj[claim.claim_type]
+      const prizeText = prize ? ` (Prize: 🎁 ${prize})` : ""
+
+      // Show big center screen announcement overlay for all players
+      setAnnouncement({ name, claimLabel: label, prize: prize || "" })
+
+      if (claim.player_id === playerId) {
+        toast.success(`🎉 BINGO! Your claim for ${label} was approved!${prizeText}`, {
+          duration: 8000,
+          position: "top-center"
+        })
+      } else {
+        toast.success(`🎉 ${name} won ${label}!${prizeText}`, {
+          duration: 8000,
+          position: "top-center"
+        })
+      }
+
+      // Trigger celebratory confetti burst for all players!
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 }
+      })
+
+      // Automatically clear announcement overlay after 5.5 seconds
+      setTimeout(() => {
+        setAnnouncement(prev => {
+          if (prev?.name === name && prev?.claimLabel === label) {
+            return null
+          }
+          return prev
+        })
+      }, 5500)
+    }).catch(err => console.error("Error celebrating win:", err))
+  }, [gameId, playerId, fetchWinners])
+
   // ============ Initial Load ============
   const loadData = useCallback(async () => {
     if (hasLoadedRef.current) return
     hasLoadedRef.current = true
+    celebratedClaimIdsRef.current.clear()
     
     try {
       // 1. Fetch Game
@@ -333,68 +390,29 @@ export default function PlayerBoardPage() {
         }
 
         if (claim.status === "approved") {
-          fetchWinners()
-          
-          // Fetch player's display name and game prizes to celebrate
-          Promise.all([
-            supabase.from("players").select("display_name").eq("id", claim.player_id).single(),
-            supabase.from("games").select("prizes").eq("id", gameId).single()
-          ]).then(([{ data: playerData }, { data: gameData }]) => {
-            const name = playerData?.display_name || "Someone"
-            const info = CLAIM_DISPLAY_INFO[claim.claim_type as keyof typeof CLAIM_DISPLAY_INFO]
-            const label = info ? `${info.icon} ${info.label}` : claim.claim_type.replace(/_/g, " ")
-            
-            // Resolve prize
-            const prizesObj = (gameData?.prizes as any) || {}
-            const prize = prizesObj[claim.claim_type]
-            const prizeText = prize ? ` (Prize: 🎁 ${prize})` : ""
-
-            // Show big center screen announcement overlay for all players
-            setAnnouncement({ name, claimLabel: label, prize: prize || "" })
-
-            if (claim.player_id === playerId) {
-              toast.success(`🎉 BINGO! Your claim for ${label} was approved!${prizeText}`, {
-                duration: 8000,
-                position: "top-center"
-              })
-            } else {
-              toast.success(`🎉 ${name} won ${label}!${prizeText}`, {
-                duration: 8000,
-                position: "top-center"
-              })
-            }
-
-            // Trigger celebratory confetti burst for all players!
-            confetti({
-              particleCount: 150,
-              spread: 80,
-              origin: { y: 0.6 }
-            })
-
-            // Automatically clear announcement overlay after 5 seconds
-            setTimeout(() => {
-              setAnnouncement(prev => {
-                if (prev?.name === name && prev?.claimLabel === label) {
-                  return null
-                }
-                return prev
-              })
-            }, 5000)
-          }).catch(err => console.error("Error celebrating win:", err))
+          handleApprovedClaim(claim)
         } else if (claim.status === "rejected" && claim.player_id === playerId) {
           toast.error(`Claim rejected: ${claim.validation_reason}`, { duration: 5000 })
         }
       },
       onClaimSubmitted: (payload) => {
         const claim = payload.new
+        if (claim.player_id === playerId) {
+          setPlayerClaims(prev => {
+            const idx = prev.findIndex(c => c.id === claim.id)
+            if (idx > -1) return prev.map((c, i) => i === idx ? claim : c)
+            return [...prev, claim]
+          })
+        }
+
         if (claim.status === "approved") {
-          fetchWinners()
+          handleApprovedClaim(claim)
         }
       }
     })
 
     return () => sub.unsubscribe()
-  }, [gameId, playerId, loadData, router, fetchWinners, fetchLeaderboard])
+  }, [gameId, playerId, loadData, router, fetchWinners, fetchLeaderboard, handleApprovedClaim])
 
   useEffect(() => {
     if (isGameOver) {
@@ -406,7 +424,7 @@ export default function PlayerBoardPage() {
   useEffect(() => {
     if (!isGameOver) return
 
-    const isCurrentPlayerWinner = winners.some((w) => w.player_id === playerId)
+    const isCurrentPlayerWinner = winners.some((w) => w.player_id?.toLowerCase() === playerId?.toLowerCase())
     if (!isCurrentPlayerWinner) return
 
     // Trigger initial burst
@@ -1146,34 +1164,62 @@ export default function PlayerBoardPage() {
       )}
       {/* Real-time Bingo Win Announcement Overlay */}
       {announcement && (
-        <div className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
-          <div className="bg-white border-2 border-yellow-400 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-500">
-            {/* Background design pattern */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#eab308_1px,transparent_1px)] [background-size:16px_16px]" />
-            <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md animate-bounce">
-              <Trophy className="w-8 h-8 text-white drop-shadow" />
+        <div className="fixed inset-0 z-[300] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-md bg-slate-900/90 border border-slate-700/50 rounded-[2.5rem] p-8 md:p-10 text-center shadow-[0_0_50px_rgba(234,179,8,0.15)] overflow-hidden animate-in zoom-in-95 duration-500">
+            {/* Glowing decorative lights behind */}
+            <div className="absolute -top-20 -left-20 w-40 h-40 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px]" />
+            
+            {/* Sparkles / Stars Animation */}
+            <Star className="absolute top-10 left-10 w-5 h-5 text-yellow-300/40 animate-ping" style={{ animationDuration: '3s' }} />
+            <Star className="absolute bottom-12 left-16 w-4 h-4 text-amber-400/30 animate-pulse" style={{ animationDuration: '2s' }} />
+            <Sparkles className="absolute top-16 right-12 w-6 h-6 text-yellow-250/50 animate-bounce" style={{ animationDuration: '4.5s' }} />
+            <Sparkles className="absolute bottom-20 right-16 w-5 h-5 text-blue-300/40 animate-pulse" style={{ animationDuration: '2.5s' }} />
+
+            {/* Medal Icon badge */}
+            <div className="relative w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-dashed border-amber-400/40 animate-spin" style={{ animationDuration: '15s' }} />
+              <div className="absolute inset-2 bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 rounded-full flex items-center justify-center shadow-lg shadow-yellow-500/20">
+                <Trophy className="w-10 h-10 text-white drop-shadow-[0_2px_5px_rgba(0,0,0,0.2)] animate-pulse" />
+              </div>
             </div>
-            <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">
+
+            <h3 className="text-xs font-black uppercase tracking-[0.25em] text-yellow-500 mb-2">
               BINGO CLAIMED!
             </h3>
-            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-1">
-              Pattern Verified
-            </p>
-            <div className="mt-4 p-4 bg-slate-50 border rounded-2xl">
-              <p className="text-xl font-black text-[#2563EB]">
-                {announcement.name}
-              </p>
-              <p className="text-xs font-extrabold text-slate-650 mt-1">
-                Completed: {announcement.claimLabel}
-              </p>
-              {announcement.prize && (
-                <p className="text-xs font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full mt-2 inline-block">
-                  🎁 Prize: {announcement.prize}
-                </p>
-              )}
+            
+            {/* Large Glowing Player Name */}
+            <div className="relative my-6 animate-in zoom-in duration-500">
+              <span className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-yellow-400 via-pink-500 to-blue-500 opacity-30 blur animate-pulse" />
+              <div className="relative px-6 py-4 bg-slate-950/80 border border-slate-800 rounded-2xl">
+                <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 drop-shadow-md select-none">
+                  {announcement.name}
+                </h2>
+              </div>
             </div>
+
+            {/* Completed Pattern */}
+            <div className="mt-4">
+              <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-800 border border-slate-700/80 text-slate-300 font-extrabold text-xs shadow-inner">
+                <span>Completed:</span>
+                <span className="text-yellow-450">{announcement.claimLabel}</span>
+              </div>
+            </div>
+
+            {/* Prize Alert Box */}
+            {announcement.prize && (
+              <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/20 max-w-xs mx-auto animate-in slide-in-from-bottom duration-500">
+                <p className="text-[10px] uppercase font-black tracking-widest text-amber-400">Winning Prize</p>
+                <p className="text-sm font-extrabold text-amber-250 mt-1 flex items-center justify-center gap-1.5">
+                  <span>🎁</span>
+                  {announcement.prize}
+                </p>
+              </div>
+            )}
+
             <Button
-              className="mt-6 w-full h-11 rounded-xl font-bold bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+              className="mt-8 w-full h-12 rounded-xl font-bold bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#1E40AF] text-white shadow-lg shadow-blue-900/30 border border-blue-500/20 active:scale-95 transition-transform"
               onClick={() => setAnnouncement(null)}
             >
               AWESOME!
