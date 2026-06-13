@@ -99,11 +99,11 @@ const bollywoodDataset: BollywoodItem[] = [
   { id: "bw83", title: "Fighter", type: "dialogue", text: "IAF pilot story", hint: "Action drama", imageUrl: "https://upload.wikimedia.org/wikipedia/en/d/df/Fighter_film_teaser.jpg" },
   { id: "bw84", title: "Crew", type: "dialogue", text: "Airline heist", hint: "Comedy thriller", imageUrl: "https://upload.wikimedia.org/wikipedia/en/8/8f/Crew_2024_film_poster.jpeg" },
   { id: "bw85", title: "Shaitaan", type: "dialogue", text: "Family hostage", hint: "Psychological thriller", imageUrl: "https://upload.wikimedia.org/wikipedia/en/f/f0/Shaitaan_2024_film_theatrical_poster.jpeg" },
-  { id: "bw86", title: "Laapataa Ladies", type: "dialogue", text: "Bride swap comedy", hint: "Social comedy", imageUrl: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&q=80&w=400" },
-  { id: "bw87", title: "Amar Prem Ki Prem Kahani", type: "dialogue", text: "Cross-culture romance", hint: "Romantic comedy", imageUrl: "https://images.unsplash.com/photo-1518621736947-02375507d519?auto=format&fit=crop&q=80&w=400" },
-  { id: "bw88", title: "Stree 2", type: "dialogue", text: "Ghost sequel comedy", hint: "Horror comedy", imageUrl: "https://images.unsplash.com/photo-1542310503-68f7736f33d7?auto=format&fit=crop&q=80&w=400" },
-  { id: "bw89", title: "Khel Khel Mein", type: "dialogue", text: "Phone secrets game", hint: "Comedy drama", imageUrl: "https://images.unsplash.com/photo-1511551203524-9b232c2a07ab?auto=format&fit=crop&q=80&w=400" },
-  { id: "bw90", title: "Singham Again", type: "dialogue", text: "Cop universe returns", hint: "Action drama", imageUrl: "https://images.unsplash.com/photo-1542310503-68f7736f33d7?auto=format&fit=crop&q=80&w=400" },
+  { id: "bw86", title: "Laapataa Ladies", type: "dialogue", text: "Bride swap comedy", hint: "Social comedy", imageUrl: "https://upload.wikimedia.org/wikipedia/en/5/52/Laapataa_Ladies_poster.jpg" },
+  { id: "bw87", title: "Amar Prem Ki Prem Kahani", type: "dialogue", text: "Cross-culture romance", hint: "Romantic comedy", imageUrl: "https://upload.wikimedia.org/wikipedia/en/0/0d/Amar_Prem_Ki_Prem_Kahani.jpg" },
+  { id: "bw88", title: "Stree 2", type: "dialogue", text: "Ghost sequel comedy", hint: "Horror comedy", imageUrl: "https://upload.wikimedia.org/wikipedia/en/a/a1/Stree_2.jpg" },
+  { id: "bw89", title: "Khel Khel Mein", type: "dialogue", text: "Phone secrets game", hint: "Comedy drama", imageUrl: "https://upload.wikimedia.org/wikipedia/en/5/5b/Khel_Khel_Mein_poster.jpg" },
+  { id: "bw90", title: "Singham Again", type: "dialogue", text: "Cop universe returns", hint: "Action drama", imageUrl: "https://upload.wikimedia.org/wikipedia/en/0/04/Singham_Again_poster.jpg" },
 ]
 
 export function getBollywoodDataset(size: 50 | 90 = 90): BollywoodItem[] {
