@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import confetti from "canvas-confetti"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -21,29 +22,27 @@ import {
   Volume2, 
   VolumeX, 
   Share2, 
-  LogOut, 
   CheckCircle2, 
-  Gamepad2, 
   Radio,
   ChevronLeft,
   Info,
   History,
   X,
-  Zap,
   Sparkles,
   Star,
   Crown,
-  Award,
   Check,
-  TrendingUp
+  TrendingUp,
+  ChevronUp,
+  ChevronDown,
+  Hash,
+  Users
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { 
   TicketSize, 
   BoardCell, 
-  WinningLine, 
   checkBingo, 
-  getRowProgress,
   getGridConfig
 } from "@/lib/bingo-utils"
 import { 
@@ -98,8 +97,12 @@ export default function PlayerBoardPage() {
   const [isGameOver, setIsGameOver] = useState(false)
   const [playerClaims, setPlayerClaims] = useState<any[]>([])
   const [winners, setWinners] = useState<any[]>([])
+  const [leaderboard, setLeaderboard] = useState<any[]>([])
+  const [showLeaderboard, setShowLeaderboard] = useState(true)
+  const [announcement, setAnnouncement] = useState<{ name: string; claimLabel: string; prize: string } | null>(null)
   const mappingsRef = useRef<any[]>([])
   const hasLoadedRef = useRef(false)
+  const gameTypeRef = useRef<string>("number")
   
   // Store actions
   const setPlayerIdentity = usePlayerStore((s) => s.setPlayerIdentity)
@@ -118,6 +121,32 @@ export default function PlayerBoardPage() {
     }
   }, [gameId])
 
+  const fetchLeaderboard = useCallback(async () => {
+    try {
+      const { data: playersList } = await supabase
+        .from("players")
+        .select("id, display_name")
+        .eq("game_id", gameId)
+
+      if (!playersList) return
+
+      const stats = await Promise.all(
+        playersList.map(async (p) => {
+          const { count } = await supabase
+            .from("player_marks")
+            .select("*", { count: "exact", head: true })
+            .eq("player_id", p.id)
+          
+          return { id: p.id, name: p.display_name, marks: count || 0 }
+        })
+      )
+      
+      setLeaderboard(stats.sort((a, b) => b.marks - a.marks))
+    } catch (err) {
+      console.error("Leaderboard fetch error:", err)
+    }
+  }, [gameId])
+
   // ============ Initial Load ============
   const loadData = useCallback(async () => {
     if (hasLoadedRef.current) return
@@ -132,10 +161,10 @@ export default function PlayerBoardPage() {
         .single()
       
       if (gError || !gData) throw gError
+      gameTypeRef.current = gData.game_type
       if (gData.status === "ended") {
         setGameData(gData)
         setIsGameOver(true)
-        // We continue loading to show the final board/scores
       } else {
         setGameData(gData)
       }
@@ -150,7 +179,7 @@ export default function PlayerBoardPage() {
       if (pError || !pData) throw pError
       setPlayerIdentity(pData.id, pData.display_name, pData.join_token, gameId)
 
-      // 3. Fetch Bollywood Mappings (Needed for both generation and reconstruction)
+      // 3. Fetch Bollywood Mappings
       let currentMappings: any[] = []
       if (gData.game_type === "bollywood") {
         const { data: bMappings } = await supabase
@@ -174,7 +203,6 @@ export default function PlayerBoardPage() {
 
       let finalBoard: BoardCell[] = []
       if (!tData) {
-        // Generate new ticket
         let itemsBase: any[] = []
         if (gData.game_type === "number") {
           itemsBase = generateNumberItems(gData.number_range || 90)
@@ -189,14 +217,12 @@ export default function PlayerBoardPage() {
         const generated = generateTicketsForPlayers([playerId], itemsBase, gData.ticket_size as TicketSize)[0]
         finalBoard = generated.cells
         
-        // Persist to DB
         const { error: insertError } = await supabase.from("player_tickets").insert({
           player_id: playerId,
           game_id: gameId,
           ticket_data: generated.ticketData
         })
 
-        // If insert failed because it already exists (race condition), fetch it again
         if (insertError) {
           const { data: retryData } = await supabase
             .from("player_tickets")
@@ -250,8 +276,8 @@ export default function PlayerBoardPage() {
       
       setPlayerClaims(clData || [])
 
-      // Fetch all winners (approved claims) for the game to disable claimed options
       await fetchWinners()
+      await fetchLeaderboard()
 
     } catch (error) {
       console.error("Load error:", error)
@@ -260,7 +286,7 @@ export default function PlayerBoardPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [gameId, playerId, router, setPlayerIdentity, fetchWinners]) // Removed bollywoodMappings from deps
+  }, [gameId, playerId, router, setPlayerIdentity, fetchWinners, fetchLeaderboard])
 
   useEffect(() => {
     loadData()
@@ -272,12 +298,21 @@ export default function PlayerBoardPage() {
         setCalledHistory(prev => [...prev, item])
         setLastCalled(item)
         
-        // Use Reference to avoid loop dependency
         if (mappingsRef.current.length > 0) {
           const mapping = mappingsRef.current.find(m => m.number.toString() === item.item_id.toString())
           setLastCalledMapping(mapping)
         }
-        toast.info(`New number: ${item.item_id}`, { position: "top-center" })
+        if (gameTypeRef.current === "bollywood") {
+          toast.info("🎬 New Bollywood clue called! Guess the movie.", { position: "top-center" })
+        } else {
+          toast.info(`New number: ${item.item_id}`, { position: "top-center" })
+        }
+      },
+      onPlayerJoined: () => {
+        fetchLeaderboard()
+      },
+      onPlayerMarked: () => {
+        fetchLeaderboard()
       },
       onGameStatusChanged: (payload) => {
         if (payload.new.status === "ended") {
@@ -295,14 +330,59 @@ export default function PlayerBoardPage() {
             if (idx > -1) return prev.map((c, i) => i === idx ? claim : c)
             return [...prev, claim]
           })
-          if (claim.status === "approved") {
-            toast.success("BINGO! Your claim was approved!", { duration: 5000 })
-            fetchWinners()
-          } else if (claim.status === "rejected") {
-            toast.error(`Claim rejected: ${claim.validation_reason}`, { duration: 5000 })
-          }
-        } else if (claim.status === "approved") {
+        }
+
+        if (claim.status === "approved") {
           fetchWinners()
+          
+          // Fetch player's display name and game prizes to celebrate
+          Promise.all([
+            supabase.from("players").select("display_name").eq("id", claim.player_id).single(),
+            supabase.from("games").select("prizes").eq("id", gameId).single()
+          ]).then(([{ data: playerData }, { data: gameData }]) => {
+            const name = playerData?.display_name || "Someone"
+            const info = CLAIM_DISPLAY_INFO[claim.claim_type as keyof typeof CLAIM_DISPLAY_INFO]
+            const label = info ? `${info.icon} ${info.label}` : claim.claim_type.replace(/_/g, " ")
+            
+            // Resolve prize
+            const prizesObj = (gameData?.prizes as any) || {}
+            const prize = prizesObj[claim.claim_type]
+            const prizeText = prize ? ` (Prize: 🎁 ${prize})` : ""
+
+            // Show big center screen announcement overlay for all players
+            setAnnouncement({ name, claimLabel: label, prize: prize || "" })
+
+            if (claim.player_id === playerId) {
+              toast.success(`🎉 BINGO! Your claim for ${label} was approved!${prizeText}`, {
+                duration: 8000,
+                position: "top-center"
+              })
+            } else {
+              toast.success(`🎉 ${name} won ${label}!${prizeText}`, {
+                duration: 8000,
+                position: "top-center"
+              })
+            }
+
+            // Trigger celebratory confetti burst for all players!
+            confetti({
+              particleCount: 150,
+              spread: 80,
+              origin: { y: 0.6 }
+            })
+
+            // Automatically clear announcement overlay after 5 seconds
+            setTimeout(() => {
+              setAnnouncement(prev => {
+                if (prev?.name === name && prev?.claimLabel === label) {
+                  return null
+                }
+                return prev
+              })
+            }, 5000)
+          }).catch(err => console.error("Error celebrating win:", err))
+        } else if (claim.status === "rejected" && claim.player_id === playerId) {
+          toast.error(`Claim rejected: ${claim.validation_reason}`, { duration: 5000 })
         }
       },
       onClaimSubmitted: (payload) => {
@@ -314,13 +394,66 @@ export default function PlayerBoardPage() {
     })
 
     return () => sub.unsubscribe()
-  }, [gameId, playerId, loadData, router, fetchWinners])
+  }, [gameId, playerId, loadData, router, fetchWinners, fetchLeaderboard])
 
   useEffect(() => {
     if (isGameOver) {
       fetchWinners()
     }
   }, [isGameOver, fetchWinners])
+
+  // Continuous confetti shower on game over - ONLY for winners
+  useEffect(() => {
+    if (!isGameOver) return
+
+    const isCurrentPlayerWinner = winners.some((w) => w.player_id === playerId)
+    if (!isCurrentPlayerWinner) return
+
+    // Trigger initial burst
+    confetti({
+      particleCount: 120,
+      spread: 70,
+      origin: { y: 0.6 }
+    })
+
+    const defaults = { startVelocity: 25, spread: 360, ticks: 60, zIndex: 300 }
+
+    const randomInRange = (min: number, max: number) => {
+      return Math.random() * (max - min) + min
+    }
+
+    const intervalId = setInterval(() => {
+      confetti({ ...defaults, particleCount: 30, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } })
+      confetti({ ...defaults, particleCount: 30, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } })
+    }, 400)
+
+    return () => clearInterval(intervalId)
+  }, [isGameOver, winners, playerId])
+
+  // ============ Decentralized Self-Healing Auto-Call Trigger ============
+  useEffect(() => {
+    if (!gameData || gameData.status !== "active" || !gameData.auto_call || gameData.paused) return
+
+    const intervalId = setInterval(async () => {
+      if (gameData.next_call_at) {
+        const nextCallTime = new Date(gameData.next_call_at).getTime()
+        // Add 500ms delay to let the host trigger it first if online
+        if (Date.now() >= nextCallTime + 500) {
+          try {
+            await fetch("/api/game/auto-call", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ gameId })
+            })
+          } catch (err) {
+            console.error("Auto-call trigger error:", err)
+          }
+        }
+      }
+    }, 2000)
+
+    return () => clearInterval(intervalId)
+  }, [gameData, gameId])
 
   // ============ Actions ============
   const toggleMark = async (cell: BoardCell) => {
@@ -356,6 +489,7 @@ export default function PlayerBoardPage() {
           })
       }
       setMarkedIds(newMarked)
+      // Leaderboard will update via realtime database subscription
     } catch (error) {
       console.error("Mark update error:", error)
       toast.error("Failed to update mark")
@@ -380,7 +514,7 @@ export default function PlayerBoardPage() {
           return true
         })
 
-      // 1) Resolve index for claims that need one
+      // Resolve index for claims that need one
       if (selectedClaimType === "row") {
         for (let i = 0; i < gridConfig.rows; i++) {
           if (isAlreadyApproved("row", i)) continue
@@ -416,83 +550,32 @@ export default function PlayerBoardPage() {
         claimIndex = gridConfig.rows - 1
       }
 
-      // 2) Game-wide duplicate guard
-      const existingWinner = winners.find((c) => {
-        if (c.status !== "approved") return false
-        const storedType = (c.claim_data as any)?.type || c.claim_type
-        if (storedType !== selectedClaimType) return false
-        const data = (c.claim_data as any) || {}
-        if (claimIndex !== undefined) return Number(data.index) === claimIndex
-        return true
+      // Submit claim to API
+      const response = await fetch("/api/game/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameId,
+          playerId,
+          claimType: selectedClaimType,
+          claimIndex
+        })
       })
 
-      if (existingWinner) {
-        if (existingWinner.player_id === playerId) {
-          toast.error("You have already won this prize!")
-        } else {
-          toast.error(`This prize has already been claimed by ${existingWinner.players?.display_name || "another player"}!`)
-        }
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        toast.error(`Invalid Claim: ${result.reason || result.error}`)
         return
       }
 
-      const result = validateClaim(selectedClaimType, claimIndex, board, markedIds, calledValues, gameData.ticket_size as TicketSize)
-
-      if (!result.valid) {
-        toast.error(`Invalid Claim: ${result.reason}`)
-        return
-      }
-
-      const claimPayload: Record<string, any> = {
-          game_id: gameId,
-          player_id: playerId,
-          claim_type: selectedClaimType,
-          claim_data: { 
-            index: claimIndex, 
-            type: selectedClaimType, 
-            cells: result.claimedCells.map(c => c.item.id) 
-          },
-          is_valid: true,
-          validation_reason: result.reason,
-          status: "approved"
-      }
-
-      let { data: newClaim, error } = await supabase
-        .from("claims")
-        .insert(claimPayload)
-        .select()
-        .single()
-      
-      // Fallback: if claim_data column doesn't exist in DB, retry without it
-      if (error && error.message?.includes("claim_data")) {
-        console.warn("claim_data column not found, retrying without it. Please add 'claim_data jsonb' column to your claims table.")
-        const { claim_data, ...payloadWithout } = claimPayload
-        const retry = await supabase
-          .from("claims")
-          .insert(payloadWithout)
-          .select()
-          .single()
-        newClaim = retry.data
-        error = retry.error
-      }
-
-      if (error) {
-        console.error("Supabase Claim Error Details:", {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
-        throw error
-      }
-
-      setPlayerClaims(prev => [...prev, newClaim])
+      setPlayerClaims(prev => [...prev, result.claim])
       await fetchWinners()
       toast.success(`Success! Your ${selectedClaimType.replace("_", " ")} claim was approved.`)
       setShowClaimDialog(false)
     } catch (error: any) {
-      console.error("Claim submission catch block:", error)
-      const errorMessage = error?.message || error?.details || "Failed to submit claim"
-      toast.error(`Claim Error: ${errorMessage}`)
+      console.error("Claim submission error:", error)
+      toast.error(error.message || "Failed to submit claim")
     } finally {
       setIsSubmittingClaim(false)
     }
@@ -509,64 +592,14 @@ export default function PlayerBoardPage() {
 
   const gridConfig = getGridConfig(gameData.ticket_size as TicketSize)
   const progressPercent = Math.round((markedIds.size / board.filter(c => !c.isEmpty && !c.isFree).length) * 100)
-
   const gameType = (gameData?.game_type as "number" | "bollywood" | "custom") || "number"
-  const theme = {
-    number: {
-      accent: "blue",
-      glow: "shadow-sm",
-      badgeBg: "bg-[#EFF6FF] text-[#2563EB] border border-[#DBEAFE]",
-      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
-      gradientOrb: "hidden",
-      accentText: "text-[#2563EB]",
-      bgAccent: "bg-[#2563EB]",
-      border: "border-slate-200/60",
-      bgGradient: "bg-white",
-      titleGradient: "from-slate-800 to-slate-950",
-    },
-    bollywood: {
-      accent: "amber",
-      glow: "shadow-sm",
-      badgeBg: "bg-amber-50 text-amber-600 border border-amber-200",
-      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
-      gradientOrb: "hidden",
-      accentText: "text-amber-600",
-      bgAccent: "bg-amber-500",
-      border: "border-slate-200/60",
-      bgGradient: "bg-white",
-      titleGradient: "from-slate-800 to-slate-950",
-    },
-    custom: {
-      accent: "purple",
-      glow: "shadow-sm",
-      badgeBg: "bg-purple-50 text-purple-600 border border-purple-200",
-      btnColor: "bg-[#2563EB] hover:bg-[#1D4ED8]",
-      gradientOrb: "hidden",
-      accentText: "text-purple-600",
-      bgAccent: "bg-purple-500",
-      border: "border-slate-200/60",
-      bgGradient: "bg-white",
-      titleGradient: "from-slate-800 to-slate-950",
-    },
-  }[gameType] || {
-    accent: "neutral",
-    glow: "shadow-sm",
-    badgeBg: "bg-slate-50 text-slate-700 border border-slate-200",
-    btnColor: "bg-slate-900 hover:bg-slate-800",
-    gradientOrb: "hidden",
-    accentText: "text-slate-900",
-    bgAccent: "bg-slate-900",
-    border: "border-slate-200/60",
-    bgGradient: "bg-white",
-    titleGradient: "from-slate-800 to-slate-950",
-  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
       <div className="sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-slate-200/60 px-4 py-3">
         <div className="max-w-xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push("/")} className="text-slate-450 hover:text-slate-650 transition-colors">
+            <button onClick={() => router.push("/")} className="text-slate-400 hover:text-slate-655 transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="flex flex-col">
@@ -611,7 +644,7 @@ export default function PlayerBoardPage() {
                 </div>
               </div>
             )}
-            <div className="mt-4 flex justify-between items-center text-xs text-slate-550 bg-slate-50 p-3.5 border-t border-slate-100 rounded-b-2xl">
+            <div className="mt-4 flex justify-between items-center text-xs text-slate-500 bg-slate-50 p-3.5 border-t border-slate-100 rounded-b-2xl">
               <div className="flex items-center gap-1">
                 <History className="w-3 h-3 text-slate-400" />
                 <span>Call #{calledHistory.length}</span>
@@ -627,6 +660,44 @@ export default function PlayerBoardPage() {
           </CardContent>
         </Card>
 
+        {/* Live Leaderboard Widget */}
+        <Card className="border border-slate-200 bg-white shadow-sm rounded-2xl overflow-hidden">
+          <button 
+            onClick={() => setShowLeaderboard(!showLeaderboard)}
+            className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-500 fill-amber-500/10" />
+              <span className="font-extrabold text-sm text-slate-800">Live Leaderboard ({leaderboard.length})</span>
+            </div>
+            {showLeaderboard ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          </button>
+          
+          {showLeaderboard && (
+            <CardContent className="p-0 border-t border-slate-100">
+              <div className="divide-y divide-slate-100 max-h-40 overflow-y-auto">
+                {leaderboard.map((player, index) => {
+                  const isMe = player.id === playerId
+                  return (
+                    <div 
+                      key={player.id} 
+                      className={`flex items-center justify-between px-4 py-2.5 text-xs ${isMe ? "bg-blue-50/40 font-bold" : ""}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-400 w-4">#{index + 1}</span>
+                        <span className={isMe ? "text-blue-600" : "text-slate-700"}>{player.name}</span>
+                        {isMe && <Badge variant="outline" className="text-[8px] px-1 py-0 bg-blue-50 text-blue-650 border-blue-200 rounded">You</Badge>}
+                      </div>
+                      <span className="text-slate-500 font-semibold">{player.marks} marks</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Ticket Board Grid */}
         <div 
           className="grid gap-2 sm:gap-3" 
           style={{ 
@@ -635,9 +706,9 @@ export default function PlayerBoardPage() {
         >
           {board.map((cell) => {
             const isMarked = markedIds.has(cell.item.id)
-            const isCalled = (calledValues.has(cell.item.id) || calledValues.has(cell.item.value)) && !cell.isFree
-            const isFailed = failedMarkIds.has(cell.item.id)
             const isBollywood = gameData.game_type === "bollywood"
+            const isCalled = (calledValues.has(cell.item.id) || calledValues.has(cell.item.value)) && !cell.isFree && !isBollywood
+            const isFailed = failedMarkIds.has(cell.item.id)
             
             if (cell.isEmpty) return <div key={cell.id} className="aspect-square opacity-0" />
 
@@ -660,10 +731,7 @@ export default function PlayerBoardPage() {
                   <>
                     {isBollywood ? (
                       <div className="flex h-full w-full flex-col items-center justify-center px-2 py-2 text-center">
-                        <span className={`text-[10px] sm:text-xs font-black tracking-wide ${isMarked ? "text-green-600" : isFailed ? "text-red-500" : isCalled ? "text-[#2563EB]" : "text-slate-400"}`}>
-                          #{cell.item.value}
-                        </span>
-                        <span className={`mt-1 line-clamp-2 text-xs sm:text-sm font-bold leading-tight ${isMarked ? "text-green-700" : isFailed ? "text-red-650" : "text-slate-800"}`}>
+                        <span className={`line-clamp-2 text-xs sm:text-sm font-bold leading-tight ${isMarked ? "text-green-700" : isFailed ? "text-red-650" : "text-slate-800"}`}>
                           {cell.item.movieName || cell.item.value}
                         </span>
                       </div>
@@ -690,7 +758,7 @@ export default function PlayerBoardPage() {
           })}
         </div>
 
-        <div className="flex justify-between items-center text-xs text-slate-450 px-1">
+        <div className="flex justify-between items-center text-xs text-slate-500 px-1">
           <div className="flex items-center gap-2">
             <Info className="w-3 h-3 text-slate-400" />
             <span>{gameData.game_type === "bollywood" ? "Tap a movie card once its number is called to mark it." : "Tap a number once it's called to mark it."}</span>
@@ -716,7 +784,7 @@ export default function PlayerBoardPage() {
             variant="outline" 
             className="h-16 w-16 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
             onClick={() => {
-              const url = window.location.href
+              const url = `https://bingo-game-mu-silk.vercel.app/join/${gameData?.game_code}`
               navigator.clipboard.writeText(url)
               toast.success("Link copied! Share with friends.")
             }}
@@ -779,7 +847,7 @@ export default function PlayerBoardPage() {
                   >
                     <div className="flex flex-col gap-1">
                       <span className={`text-2xl transition-transform duration-300 ${!isClaimed && "group-hover:scale-110"}`}>{info.icon}</span>
-                      <span className={`font-bold text-xs tracking-tight ${isMyClaim ? "text-green-800" : isClaimed ? "text-slate-500" : "text-slate-800"}`}>
+                      <span className={`font-bold text-xs tracking-tight ${isMyClaim ? "text-green-800" : isClaimed ? "text-slate-550" : "text-slate-800"}`}>
                         {info.label}
                       </span>
                     </div>
@@ -792,8 +860,8 @@ export default function PlayerBoardPage() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-1 mt-auto min-w-0">
-                          <Trophy className="w-3 h-3 text-slate-450 flex-shrink-0" />
-                          <span className="text-[9px] font-bold text-slate-450 truncate uppercase tracking-wider">
+                          <Trophy className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                          <span className="text-[9px] font-bold text-slate-400 truncate uppercase tracking-wider">
                             {claimWinner.players?.display_name || "Claimed"}
                           </span>
                         </div>
@@ -841,9 +909,8 @@ export default function PlayerBoardPage() {
       </Dialog>
 
       {isGameOver && (
-        <div className="fixed inset-0 z-[200] bg-[#F8FAFC]/95 backdrop-blur-2xl flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-500">
-          <div className="w-full max-w-4xl space-y-8 text-center relative z-10 py-8 scroll-py-8">
-            {/* Header Hero */}
+        <div className="fixed inset-0 z-[200] bg-[#F8FAFC]/95 backdrop-blur-2xl overflow-y-auto p-4 sm:p-8 flex flex-col items-center animate-in fade-in duration-500">
+          <div className="w-full max-w-4xl space-y-8 text-center relative z-10 my-auto py-8">
             <div className="space-y-4">
               <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center mx-auto relative shadow-md animate-pulse">
                 <Trophy className="w-10 h-10 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)]" />
@@ -862,15 +929,12 @@ export default function PlayerBoardPage() {
               </div>
             </div>
 
-            {/* Content Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-              {/* Left Column: Stats & Actions */}
               <div className="space-y-6">
                 <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 px-1">
                   Your Performance
                 </h2>
                 
-                {/* Personal scorecard metrics */}
                 <div className="grid grid-cols-2 gap-4">
                   <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl transition-transform duration-300 hover:scale-[1.02]">
                     <CardContent className="pt-6 pb-6 text-center">
@@ -893,7 +957,6 @@ export default function PlayerBoardPage() {
                   </Card>
                 </div>
 
-                {/* Match Accuracy Tracker Card */}
                 <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl relative overflow-hidden transition-transform duration-300 hover:scale-[1.02]">
                   <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                     <Sparkles className="w-16 h-16 text-[#2563EB]" />
@@ -920,7 +983,60 @@ export default function PlayerBoardPage() {
                   </CardContent>
                 </Card>
 
-                {/* Return Actions */}
+                {/* Game Stats */}
+                <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl">
+                  <CardContent className="p-5">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 mb-3">
+                      <span className="uppercase tracking-wider flex items-center gap-1.5">
+                        <Hash className="w-3.5 h-3.5 text-slate-400" />
+                        Game Stats
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
+                        <p className="text-[9px] uppercase font-black tracking-widest text-slate-400">Total Calls</p>
+                        <p className="text-2xl font-black text-slate-800 mt-1">{calledHistory.length}</p>
+                      </div>
+                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-center">
+                        <p className="text-[9px] uppercase font-black tracking-widest text-slate-400">Mode</p>
+                        <p className="text-base font-black text-slate-800 mt-1.5 capitalize truncate">{gameData?.game_type}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Top Activity (Leaderboard) */}
+                <Card className="bg-white border border-slate-200/60 shadow-sm rounded-2xl overflow-hidden">
+                  <CardHeader className="py-3 px-5 border-b border-slate-100 bg-slate-50/50">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-455 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-slate-400" />
+                      Top Activity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y text-xs max-h-36 overflow-y-auto">
+                      {leaderboard.slice(0, 5).map((p, idx) => {
+                        const isMe = p.id === playerId
+                        return (
+                          <div key={idx} className={`flex items-center justify-between p-3.5 transition-colors ${isMe ? "bg-blue-50/30" : ""}`}>
+                            <span className={`font-bold ${isMe ? "text-blue-600" : "text-slate-700"}`}>
+                              {p.name} {isMe && "(You)"}
+                            </span>
+                            <Badge variant="secondary" className="font-black px-2 py-0.5 text-[10px] bg-blue-50 text-blue-700 border-blue-200 rounded-full">
+                              {p.marks} marks
+                            </Badge>
+                          </div>
+                        )
+                      })}
+                      {leaderboard.length === 0 && (
+                        <div className="p-6 text-center text-slate-400 italic text-[10px]">
+                          No player activity data available.
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <div className="pt-2 space-y-4">
                   <Button 
                     className="w-full h-14 rounded-2xl font-black text-lg text-white bg-[#2563EB] hover:bg-[#1D4ED8] shadow-sm hover:scale-[1.02] active:scale-95 transition-all duration-300"
@@ -928,13 +1044,9 @@ export default function PlayerBoardPage() {
                   >
                     Return to Lobby
                   </Button>
-                  <p className="text-[10px] font-bold text-slate-350 uppercase tracking-[0.2em] text-center">
-                    Bingo Visual Recognition Engine v1.0
-                  </p>
                 </div>
               </div>
 
-              {/* Right Column: Champions Board / Winner Display */}
               <div className="space-y-6">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
@@ -1032,6 +1144,43 @@ export default function PlayerBoardPage() {
           </div>
         </div>
       )}
-    </div>
+      {/* Real-time Bingo Win Announcement Overlay */}
+      {announcement && (
+        <div className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white border-2 border-yellow-400 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-500">
+            {/* Background design pattern */}
+            <div className="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#eab308_1px,transparent_1px)] [background-size:16px_16px]" />
+            <div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-md animate-bounce">
+              <Trophy className="w-8 h-8 text-white drop-shadow" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight italic">
+              BINGO CLAIMED!
+            </h3>
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-1">
+              Pattern Verified
+            </p>
+            <div className="mt-4 p-4 bg-slate-50 border rounded-2xl">
+              <p className="text-xl font-black text-[#2563EB]">
+                {announcement.name}
+              </p>
+              <p className="text-xs font-extrabold text-slate-650 mt-1">
+                Completed: {announcement.claimLabel}
+              </p>
+              {announcement.prize && (
+                <p className="text-xs font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full mt-2 inline-block">
+                  🎁 Prize: {announcement.prize}
+                </p>
+              )}
+            </div>
+            <Button
+              className="mt-6 w-full h-11 rounded-xl font-bold bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+              onClick={() => setAnnouncement(null)}
+            >
+              AWESOME!
+            </Button>
+          </div>
+        </div>
+      )}
+      </div>
   )
 }

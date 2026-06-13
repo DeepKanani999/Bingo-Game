@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { Trophy, Home, RotateCcw, Users, Hash, Loader2, Sparkles, Star } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { CLAIM_DISPLAY_INFO } from "@/lib/claim-validator"
+import confetti from "canvas-confetti"
 
 export default function ResultsPage() {
   const params = useParams()
@@ -20,6 +21,18 @@ export default function ResultsPage() {
   const [topPlayers, setTopPlayers] = useState<any[]>([])
   const [calledCount, setCalledCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Confetti Burst on Load
+  useEffect(() => {
+    if (isLoading) return
+
+    // Trigger initial burst
+    confetti({
+      particleCount: 120,
+      spread: 70,
+      origin: { y: 0.6 }
+    })
+  }, [isLoading])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -139,9 +152,9 @@ export default function ResultsPage() {
                           
                           <div className="flex items-center gap-2 self-start sm:self-center">
                             {claimWinner ? (
-                              <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 hover:bg-emerald-100 font-black px-2.5 py-1 text-xs rounded-full flex items-center gap-1">
-                                <Trophy className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                                <span>{claimWinner.players?.display_name || "Winner"}</span>
+                              <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-250 hover:bg-emerald-100 font-black px-2.5 py-1 text-xs rounded-full flex items-center gap-1 max-w-[150px] sm:max-w-xs">
+                                <Trophy className="w-3 h-3 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                                <span className="truncate">{claimWinner.players?.display_name || "Winner"}</span>
                               </Badge>
                             ) : (
                               <span className="text-xs text-slate-400 font-bold bg-slate-100 border border-slate-200/60 px-2.5 py-1 rounded-full">

@@ -146,7 +146,7 @@ export default function CreateGamePage() {
       })
 
       toast.success("Game created!")
-      router.push(`/host/${gameId}/${hostSecret}`)
+      router.push(`/host/${gameId}`)
     } catch (error) {
       console.error("Error creating game:", error)
       toast.error("Failed to create game")
@@ -210,6 +210,7 @@ export default function CreateGamePage() {
                     placeholder="e.g. Friday Night Bingo"
                     {...form.register("gameName")}
                     className="h-12 rounded-xl text-base"
+                    autoComplete="off"
                   />
                   {form.formState.errors.gameName && (
                     <p className="text-xs text-destructive">{form.formState.errors.gameName.message}</p>
@@ -223,6 +224,7 @@ export default function CreateGamePage() {
                     placeholder="e.g. Rahul"
                     {...form.register("hostName")}
                     className="h-12 rounded-xl text-base"
+                    autoComplete="off"
                   />
                   {form.formState.errors.hostName && (
                     <p className="text-xs text-destructive">{form.formState.errors.hostName.message}</p>

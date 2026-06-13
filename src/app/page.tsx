@@ -41,61 +41,30 @@ export default function LandingPage() {
 
     setIsJoining(true)
     try {
-      // Find game by code
-      const { data: game, error: gameError } = await supabase
-        .from("games")
-        .select("*")
-        .eq("game_code", gameCode.trim().toUpperCase())
-        .single()
-
-      if (gameError || !game) {
-        toast.error("Game not found. Check the code and try again.")
-        setIsJoining(false)
-        return
-      }
-
-      if (game.status === "ended") {
-        toast.error("This game has already ended.")
-        setIsJoining(false)
-        return
-      }
-
-      // Check player count
-      const { count } = await supabase
-        .from("players")
-        .select("*", { count: "exact", head: true })
-        .eq("game_id", game.id)
-
-      if (count !== null && count >= game.max_players) {
-        toast.error("This game is full!")
-        setIsJoining(false)
-        return
-      }
-
-      // Create player
-      const playerId = crypto.randomUUID()
-      const joinToken = crypto.randomUUID()
-
-      const { error: playerError } = await supabase.from("players").insert({
-        id: playerId,
-        game_id: game.id,
-        join_token: joinToken,
-        display_name: playerName.trim(),
+      const response = await fetch("/api/game/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameCode: gameCode.trim().toUpperCase(), display_name: playerName.trim() })
       })
 
-      if (playerError) throw playerError
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        toast.error(result.error || "Failed to join game")
+        return
+      }
 
       // Store session
-      localStorage.setItem("activeGameId", game.id)
-      localStorage.setItem("activePlayerId", playerId)
-      localStorage.setItem("activePlayerName", playerName.trim())
+      localStorage.setItem("activeGameId", result.gameId)
+      localStorage.setItem("activePlayerId", result.playerId)
+      localStorage.setItem("activePlayerName", result.playerName)
 
       toast.success("Joined game!")
       
-      if (game.status === "active") {
-        router.push(`/play/${game.id}/${playerId}`)
+      if (result.status === "active") {
+        router.push(`/play/${result.gameId}/${result.playerId}`)
       } else {
-        router.push(`/lobby/${game.id}?player=${playerId}`)
+        router.push(`/lobby/${result.gameId}?player=${result.playerId}`)
       }
     } catch (error) {
       console.error("Join error:", error)
@@ -253,6 +222,7 @@ export default function LandingPage() {
                 onChange={(e) => setGameCode(e.target.value.toUpperCase())}
                 className="text-center text-lg font-mono tracking-[0.3em] h-12 rounded-xl"
                 maxLength={6}
+                autoComplete="off"
               />
             </div>
 
@@ -267,6 +237,7 @@ export default function LandingPage() {
                 }
                 className="h-12 rounded-xl"
                 maxLength={20}
+                autoComplete="off"
               />
             </div>
 

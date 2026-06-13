@@ -85,7 +85,7 @@ export function subscribeToGame(
     channel.on(
       "postgres_changes",
       {
-        event: "INSERT",
+        event: "*",
         schema: "public",
         table: "player_marks",
       },

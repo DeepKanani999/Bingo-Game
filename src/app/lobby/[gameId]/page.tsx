@@ -109,9 +109,18 @@ export default function PlayerLobbyPage() {
 
   const handleLeave = async () => {
     if (playerId) {
-      await supabase.from("players").delete().eq("id", playerId)
+      try {
+        await fetch("/api/game/leave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gameId, playerId })
+        })
+      } catch (err) {
+        console.error("Error leaving lobby:", err)
+      }
       localStorage.removeItem("activeGameId")
       localStorage.removeItem("activePlayerId")
+      localStorage.removeItem("activePlayerName")
     }
     router.push("/")
   }

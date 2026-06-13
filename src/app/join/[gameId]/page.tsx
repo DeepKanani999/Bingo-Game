@@ -62,40 +62,29 @@ export default function JoinGameByCodePage() {
 
     setIsJoining(true)
     try {
-      // Double check player count
-      const { count } = await supabase
-        .from("players")
-        .select("*", { count: "exact", head: true })
-        .eq("game_id", gameInfo.id)
+      const response = await fetch("/api/game/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameCode: gameInfo.game_code, display_name: playerName.trim() })
+      })
 
-      if (count !== null && count >= (gameInfo.max_players || 20)) {
-        toast.error("This game is full!")
-        setIsJoining(false)
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        toast.error(result.error || "Failed to join game")
         return
       }
 
-      const playerId = crypto.randomUUID()
-      const joinToken = crypto.randomUUID()
-
-      const { error: playerError } = await supabase.from("players").insert({
-        id: playerId,
-        game_id: gameInfo.id,
-        join_token: joinToken,
-        display_name: playerName.trim(),
-      })
-
-      if (playerError) throw playerError
-
-      localStorage.setItem("activeGameId", gameInfo.id)
-      localStorage.setItem("activePlayerId", playerId)
-      localStorage.setItem("activePlayerName", playerName.trim())
+      localStorage.setItem("activeGameId", result.gameId)
+      localStorage.setItem("activePlayerId", result.playerId)
+      localStorage.setItem("activePlayerName", result.playerName)
 
       toast.success("Joined successfully!")
       
-      if (gameInfo.status === "active") {
-        router.push(`/play/${gameInfo.id}/${playerId}`)
+      if (result.status === "active") {
+        router.push(`/play/${result.gameId}/${result.playerId}`)
       } else {
-        router.push(`/lobby/${gameInfo.id}?player=${playerId}`)
+        router.push(`/lobby/${result.gameId}?player=${result.playerId}`)
       }
     } catch (error) {
       console.error("Join error:", error)
@@ -157,6 +146,7 @@ export default function JoinGameByCodePage() {
                 className="h-12 rounded-xl text-base"
                 maxLength={20}
                 autoFocus
+                autoComplete="off"
               />
             </div>
 
